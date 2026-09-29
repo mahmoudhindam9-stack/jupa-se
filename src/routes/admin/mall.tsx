@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { ShiftAuditLogViewerModal } from "@/components/admin/ShiftAuditLogViewerModal";
+import { ShiftAuditLogViewer } from "@/components/admin/ShiftAuditLogViewer";
 import {
   ParkTicketsPOSView,
   ParkRefundModal,
@@ -2464,6 +2465,17 @@ function MallManagementPage() {
                           <Clock size={12} />
                           الورديات المفتوحة
                         </button>
+                        <button
+                          onClick={() => setParkReportType("shift_audit" as any)}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                            parkReportType === ("shift_audit" as any)
+                              ? "bg-card text-teal-600 shadow-xs"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          <Database size={12} />
+                          تدقيق الورديات (Supabase)
+                        </button>
                       </div>
                     </div>
 
@@ -3377,6 +3389,12 @@ function MallManagementPage() {
                           </Button>
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {parkReportType === ("shift_audit" as any) && (
+                    <div className="p-4">
+                      <ShiftAuditLogViewer initialShiftType="park" showHeaderTitle={false} />
                     </div>
                   )}
                 </CardContent>

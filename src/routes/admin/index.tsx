@@ -18,6 +18,7 @@ import { erpStore, type Account } from "@/shared/services/erpStore";
 import { inventoryService } from "@/features/inventory/services/inventoryService";
 import { AuditOperationsModal } from "@/components/admin/AuditOperationsModal";
 import { ShiftAuditLogViewerModal } from "@/components/admin/ShiftAuditLogViewerModal";
+import { ShiftAuditLogViewer } from "@/components/admin/ShiftAuditLogViewer";
 import { TreasuryReportModal } from "@/components/admin/TreasuryReportModal";
 import { printTreasuryMovementDocument } from "@/shared/utils/printAccountingDocument";
 import {
@@ -818,6 +819,10 @@ function AdminDashboard() {
           <TabsTrigger value="chart_of_accounts" className="rounded-lg font-bold py-2 px-4">
             <FileBarChart size={16} className="ml-1.5 inline" />
             شجرة ودليل الحسابات
+          </TabsTrigger>
+          <TabsTrigger value="shift_audit" className="rounded-lg font-bold py-2 px-4 text-teal-700 dark:text-teal-400">
+            <Database size={16} className="ml-1.5 inline text-teal-600" />
+            تدقيق الورديات (Supabase)
           </TabsTrigger>
           <Button
             type="button"
@@ -2069,6 +2074,11 @@ function AdminDashboard() {
         {/* TAB 4: CHART OF ACCOUNTS (دليل الحسابات المحاسبي المحترف) */}
         <TabsContent value="chart_of_accounts" className="space-y-6 mt-4">
           <OracleAccountsViewer />
+        </TabsContent>
+
+        {/* TAB 5: SHIFT AUDIT LOGS (Supabase) */}
+        <TabsContent value="shift_audit" className="space-y-6 mt-4">
+          <ShiftAuditLogViewer />
         </TabsContent>
       </Tabs>
 

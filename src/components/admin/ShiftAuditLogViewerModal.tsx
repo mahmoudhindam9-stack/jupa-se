@@ -32,6 +32,7 @@ import {
   ShiftVisibilityAnalysis,
 } from "@/features/shifts/services/shiftAuditService";
 import { erpStore } from "@/shared/services/erpStore";
+import { ShiftAuditLogViewer } from "./ShiftAuditLogViewer";
 import { toast } from "sonner";
 
 interface ShiftAuditLogViewerModalProps {
@@ -259,177 +260,13 @@ export const ShiftAuditLogViewerModal: React.FC<ShiftAuditLogViewerModalProps> =
           </button>
         </div>
 
-        {/* TAB 1: LOGS EXPLORER */}
+        {/* TAB 1: LOGS EXPLORER WITH ADVANCED FILTERS */}
         {activeTab === "logs" && (
-          <div className="flex-1 overflow-y-auto p-5 space-y-4">
-            {/* Filter Toolbar */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 bg-muted/30 p-3 rounded-2xl border border-border/70">
-              <div className="relative md:col-span-2">
-                <Search size={14} className="absolute right-3 top-3 text-muted-foreground" />
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && fetchLogs()}
-                  placeholder="بحث برقم الوردية، الكاشير، التفاصيل..."
-                  className="pr-9 h-9 text-xs rounded-xl"
-                />
-              </div>
-
-              <div>
-                <select
-                  value={selectedType}
-                  onChange={(e) => setSelectedType(e.target.value as any)}
-                  className="w-full h-9 text-xs rounded-xl border border-input bg-background px-3 font-bold"
-                >
-                  <option value="ALL">جميع الأنواع (تذاكر + مطعم)</option>
-                  <option value="park">تذاكر الحديقة (Park / Mall)</option>
-                  <option value="restaurant">المطعم (Restaurant POS)</option>
-                </select>
-              </div>
-
-              <div>
-                <select
-                  value={selectedAction}
-                  onChange={(e) => setSelectedAction(e.target.value)}
-                  className="w-full h-9 text-xs rounded-xl border border-input bg-background px-3 font-bold"
-                >
-                  <option value="ALL">جميع الإجراءات (All Actions)</option>
-                  <option value="OPEN">افتتاح الوردية (OPEN)</option>
-                  <option value="CLOSE">إغلاق الوردية (CLOSE)</option>
-                  <option value="RESUME">استئناف (RESUME)</option>
-                  <option value="ACTIVATE">تفعيل الجلسة (ACTIVATE)</option>
-                  <option value="AUTO_CREATE">إنشاء تلقائي (AUTO_CREATE)</option>
-                  <option value="UPDATE">تعديل بيانات (UPDATE)</option>
-                  <option value="DELETE">حذف الوردية (DELETE)</option>
-                  <option value="FILTER_ANOMALY">شذوذ تصفية (FILTER_ANOMALY)</option>
-                  <option value="RECOVER_STATE">إصلاح حالة (RECOVER_STATE)</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Logs List */}
-            {logs.length === 0 ? (
-              <div className="text-center py-12 border border-dashed rounded-3xl p-8 bg-muted/10">
-                <History size={36} className="mx-auto text-muted-foreground mb-2 opacity-50" />
-                <p className="font-bold text-sm">لا توجد سجلات تدقيق تطابق معايير البحث</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  سيتم تسجيل كل حركة فتح أو إغلاق جديدة تلقائياً في Supabase وقاعدة البيانات المحلية
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {logs.map((log) => {
-                  const isExpanded = expandedLogId === log.id;
-                  const dateStr = log.client_timestamp || log.created_at || "";
-                  const formattedDate = dateStr
-                    ? new Date(dateStr).toLocaleString("ar-EG", {
-                        dateStyle: "short",
-                        timeStyle: "medium",
-                      })
-                    : "-";
-
-                  return (
-                    <div
-                      key={log.id}
-                      className="border border-border rounded-2xl bg-card p-4 transition shadow-xs hover:border-teal-500/50"
-                    >
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                        <div className="flex items-start gap-3">
-                          <div className="mt-0.5">{getActionBadge(log.action)}</div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h4 className="font-black text-sm text-foreground">
-                                {log.shift_number}
-                              </h4>
-                              {log.auto_shift_number && (
-                                <Badge variant="outline" className="text-[10px] font-mono">
-                                  {log.auto_shift_number}
-                                </Badge>
-                              )}
-                              <Badge
-                                variant="outline"
-                                className={`text-[10px] font-bold ${
-                                  log.shift_type === "park"
-                                    ? "bg-teal-500/10 text-teal-600 border-teal-500/30"
-                                    : "bg-amber-500/10 text-amber-600 border-amber-500/30"
-                                }`}
-                              >
-                                {log.shift_type === "park" ? "تذاكر الحديقة" : "المطعم"}
-                              </Badge>
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {log.details || "لا توجد تفاصيل إضافية"}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-                          {log.cashier_name && (
-                            <div>
-                              <span className="font-bold">الكاشير: </span>
-                              <span className="text-foreground font-semibold">{log.cashier_name}</span>
-                            </div>
-                          )}
-
-                          {(log.status_before || log.status_after) && (
-                            <div className="flex items-center gap-1 font-mono text-[11px] bg-muted px-2 py-0.5 rounded-md">
-                              <span>{log.status_before || "—"}</span>
-                              <span>←</span>
-                              <span className="font-bold text-teal-600">{log.status_after || "—"}</span>
-                            </div>
-                          )}
-
-                          <div className="font-mono text-[11px]" dir="ltr">
-                            {formattedDate}
-                          </div>
-
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
-                            className="h-7 text-[11px] font-bold text-teal-600 hover:text-teal-700"
-                          >
-                            {isExpanded ? "إخفاء التفاصيل" : "عرض البيانات (JSON)"}
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* Expanded JSON Inspector */}
-                      {isExpanded && (
-                        <div className="mt-3 pt-3 border-t border-border bg-muted/40 p-3 rounded-xl font-mono text-xs text-left" dir="ltr">
-                          <div className="flex items-center justify-between pb-2 mb-2 border-b border-border/50 text-muted-foreground text-[11px]">
-                            <span>ID: {log.id}</span>
-                            <span>Shift ID: {log.shift_id}</span>
-                            <span>Synced: {log.synced_to_supabase ? "YES (Supabase)" : "LOCAL ONLY"}</span>
-                          </div>
-                          <pre className="overflow-x-auto text-[11px] max-h-48 text-emerald-800 dark:text-emerald-400">
-                            {JSON.stringify(
-                              {
-                                id: log.id,
-                                shift_id: log.shift_id,
-                                shift_type: log.shift_type,
-                                shift_number: log.shift_number,
-                                auto_shift_number: log.auto_shift_number,
-                                action: log.action,
-                                status_before: log.status_before,
-                                status_after: log.status_after,
-                                cashier_name: log.cashier_name,
-                                performed_by: log.performed_by,
-                                details: log.details,
-                                metadata: log.metadata,
-                                client_timestamp: log.client_timestamp,
-                              },
-                              null,
-                              2,
-                            )}
-                          </pre>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+          <div className="flex-1 overflow-y-auto p-5">
+            <ShiftAuditLogViewer
+              initialShiftType={initialShiftType}
+              showHeaderTitle={false}
+            />
           </div>
         )}
 

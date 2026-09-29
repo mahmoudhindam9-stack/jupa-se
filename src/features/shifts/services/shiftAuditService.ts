@@ -191,10 +191,13 @@ class ShiftAuditService {
     shiftType?: ShiftType;
     action?: string;
     searchQuery?: string;
+    startDate?: string;
+    endDate?: string;
+    userFilter?: string;
     limit?: number;
   }): Promise<{ logs: ShiftAuditLogEntry[]; source: "supabase" | "local" | "hybrid" }> {
     this.initLocalLogs();
-    const limit = options?.limit || 150;
+    const limit = options?.limit || 200;
 
     let supabaseLogs: ShiftAuditLogEntry[] = [];
     let fetchSucceeded = false;
@@ -214,6 +217,12 @@ class ShiftAuditService {
       }
       if (options?.action && options.action !== "ALL") {
         query = query.eq("action", options.action);
+      }
+      if (options?.startDate) {
+        query = query.gte("client_timestamp", `${options.startDate}T00:00:00.000Z`);
+      }
+      if (options?.endDate) {
+        query = query.lte("client_timestamp", `${options.endDate}T23:59:59.999Z`);
       }
 
       const { data, error } = await query;
@@ -258,6 +267,28 @@ class ShiftAuditService {
     if (options?.action && options.action !== "ALL") {
       result = result.filter((l) => l.action === options.action);
     }
+    if (options?.startDate) {
+      result = result.filter((l) => {
+        const d = (l.client_timestamp || l.created_at || "").slice(0, 10);
+        return d >= options.startDate!;
+      });
+    }
+    if (options?.endDate) {
+      result = result.filter((l) => {
+        const d = (l.client_timestamp || l.created_at || "").slice(0, 10);
+        return d <= options.endDate!;
+      });
+    }
+    if (options?.userFilter && options.userFilter !== "ALL") {
+      const u = options.userFilter.toLowerCase();
+      result = result.filter((l) => {
+        return (
+          l.cashier_name?.toLowerCase().includes(u) ||
+          l.performed_by?.toLowerCase().includes(u) ||
+          l.user_email?.toLowerCase().includes(u)
+        );
+      });
+    }
     if (options?.searchQuery && options.searchQuery.trim()) {
       const q = options.searchQuery.trim().toLowerCase();
       result = result.filter(
@@ -265,6 +296,7 @@ class ShiftAuditService {
           l.shift_number?.toLowerCase().includes(q) ||
           l.auto_shift_number?.toLowerCase().includes(q) ||
           l.cashier_name?.toLowerCase().includes(q) ||
+          l.performed_by?.toLowerCase().includes(q) ||
           l.details?.toLowerCase().includes(q) ||
           l.shift_id?.toLowerCase().includes(q),
       );
