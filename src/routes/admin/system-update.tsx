@@ -56,6 +56,11 @@ import {
   ExternalLink,
   ArrowUpCircle,
   GitBranch,
+  UploadCloud,
+  Terminal,
+  Key,
+  EyeOff,
+  Eye,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
@@ -109,6 +114,86 @@ function SystemUpdatePage() {
     githubUpdateService.getSettings(),
   );
   const [repoInput, setRepoInput] = useState(updateSettings.repo);
+
+  // GitHub Push State
+  const [githubToken, setGithubToken] = useState<string>(() => {
+    try {
+      return localStorage.getItem("restocash_github_pat_token") || "";
+    } catch {
+      return "";
+    }
+  });
+  const [showToken, setShowToken] = useState(false);
+  const [pushCommitMsg, setPushCommitMsg] = useState(
+    "Update Restocash: System sync & improvements",
+  );
+  const [isPushing, setIsPushing] = useState(false);
+  const [pushResult, setPushResult] = useState<{
+    success?: boolean;
+    message?: string;
+    output?: string;
+    error?: string;
+  } | null>(null);
+
+  const handlePushToGitHub = async () => {
+    if (!githubToken.trim()) {
+      toast({
+        title: "رمز GitHub Token مطلوب",
+        description: "يرجى إدخال GitHub Personal Access Token (PAT) للمصادقة وتخويل الرفع.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      localStorage.setItem("restocash_github_pat_token", githubToken.trim());
+    } catch {}
+
+    setIsPushing(true);
+    setPushResult(null);
+    toast({
+      title: "جاري رفع التحديثات إلى GitHub...",
+      description: `يتم تجهيز الملفات ومزامنتها مع ${updateSettings.repo} على الفرع main...`,
+    });
+
+    try {
+      const res = await fetch("/api/github/push", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: githubToken.trim(),
+          repo: updateSettings.repo,
+          commitMessage: pushCommitMsg.trim() || `Update Restocash v${CURRENT_VERSION}`,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setPushResult({ success: true, message: data.message, output: data.output });
+        toast({
+          title: "تم الرفع إلى GitHub بنجاح! 🚀",
+          description: data.message,
+        });
+        githubUpdateService.checkForUpdates(true).catch(() => {});
+      } else {
+        setPushResult({ error: data.error || "فشلت عملية الرفع", output: data.details });
+        toast({
+          title: "فشل الرفع إلى GitHub",
+          description: data.error || "حدث خطأ أثناء الاتصال بمستودع GitHub",
+          variant: "destructive",
+        });
+      }
+    } catch (err: any) {
+      setPushResult({ error: err.message || "تعذر إرسال طلب الرفع" });
+      toast({
+        title: "خطأ في الاتصال",
+        description: err.message || "تعذر الاتصال بالخادم",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPushing(false);
+    }
+  };
 
   useEffect(() => {
     const unsub = githubUpdateService.subscribe((info) => {
@@ -873,6 +958,153 @@ function SystemUpdatePage() {
                         checked={updateSettings.autoCheck}
                         onCheckedChange={handleToggleAutoCheck}
                       />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section: Push to GitHub */}
+                <div className="border-t border-border/60 pt-5 space-y-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                    <div>
+                      <h4 className="font-black text-sm text-foreground flex items-center gap-2">
+                        <UploadCloud size={18} className="text-emerald-600" />
+                        رفع ومزامنة التحديثات إلى GitHub (Git Push)
+                      </h4>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        قم برفع التعديلات والأكواد فورياً إلى مستودع{" "}
+                        <strong className="font-mono text-foreground font-bold">
+                          {updateSettings.repo}
+                        </strong>{" "}
+                        (الفرع main)
+                      </p>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className="font-mono text-xs border-emerald-300 text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40"
+                    >
+                      Branch: main
+                    </Badge>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-900/40 p-4 sm:p-5 rounded-2xl">
+                    <div className="space-y-3">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                          <Key size={14} className="text-emerald-600" />
+                          رمز الوصول الشخصي (GitHub Personal Access Token):
+                        </label>
+                        <div className="relative">
+                          <Input
+                            type={showToken ? "text" : "password"}
+                            value={githubToken}
+                            onChange={(e) => setGithubToken(e.target.value)}
+                            placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                            className="font-mono text-xs h-10 rounded-xl pr-9"
+                            dir="ltr"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowToken(!showToken)}
+                            className="absolute left-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                            title={showToken ? "إخفاء" : "إظهار"}
+                          >
+                            {showToken ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground block">
+                          يتطلب صلاحية{" "}
+                          <strong className="text-emerald-700 dark:text-emerald-400 font-mono">
+                            repo
+                          </strong>{" "}
+                          للرفع. لا يتم إرسال الرمز لأي طرف ثالث ويحفظ محلياً في متصفحك.
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-foreground block">
+                          رسالة التحديث (Commit Message):
+                        </label>
+                        <Input
+                          value={pushCommitMsg}
+                          onChange={(e) => setPushCommitMsg(e.target.value)}
+                          placeholder="تحديثات النظام وإصلاح الأكواد"
+                          className="text-xs h-10 rounded-xl"
+                        />
+                      </div>
+
+                      <Button
+                        onClick={handlePushToGitHub}
+                        disabled={isPushing}
+                        className="w-full gap-2 font-black shadow-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm h-11 rounded-xl touch-manipulation"
+                      >
+                        <UploadCloud size={17} className={isPushing ? "animate-bounce" : ""} />
+                        {isPushing
+                          ? "جاري رفع التحديثات إلى GitHub..."
+                          : `رفع التحديثات إلى ${updateSettings.repo} الآن`}
+                      </Button>
+
+                      {pushResult?.success && (
+                        <div className="p-3 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200 rounded-xl text-xs font-bold flex items-center gap-2">
+                          <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                          <span>{pushResult.message}</span>
+                        </div>
+                      )}
+
+                      {pushResult?.error && (
+                        <div className="p-3 bg-rose-100 dark:bg-rose-900/40 text-rose-800 dark:text-rose-200 rounded-xl text-xs font-bold space-y-1">
+                          <div className="flex items-center gap-2">
+                            <AlertCircle size={16} className="text-rose-600 shrink-0" />
+                            <span>{pushResult.error}</span>
+                          </div>
+                          {pushResult.output && (
+                            <pre className="font-mono text-[10px] text-rose-700 dark:text-rose-300 overflow-x-auto whitespace-pre-wrap p-1.5 bg-black/10 rounded">
+                              {pushResult.output}
+                            </pre>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="bg-slate-950 text-slate-200 p-4 rounded-xl font-mono text-xs space-y-2.5 border border-slate-800 flex flex-col justify-between">
+                      <div className="space-y-2">
+                        <div className="text-[11px] text-emerald-400 font-bold flex items-center justify-between">
+                          <span className="flex items-center gap-1.5">
+                            <Terminal size={14} />
+                            أوامر الرفع عبر الطرفية (Terminal / Git Bash):
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const cmds = `git remote set-url origin https://github.com/${updateSettings.repo}.git\ngit pull origin main --rebase\ngit add -A\ngit commit -m "Update from Restocash v${CURRENT_VERSION}"\ngit push origin main`;
+                              navigator.clipboard.writeText(cmds);
+                              toast({
+                                title: "تم نسخ الأوامر",
+                                description: "تم نسخ أوامر الطرفية إلى الحافظة",
+                              });
+                            }}
+                            className="text-[10px] text-slate-400 hover:text-white underline font-normal"
+                          >
+                            نسخ الكل
+                          </button>
+                        </div>
+                        <pre
+                          className="text-[11px] text-slate-300 whitespace-pre-wrap leading-relaxed select-all"
+                          dir="ltr"
+                        >
+                          {`git remote set-url origin https://github.com/${updateSettings.repo}.git
+git pull origin main --rebase
+git add -A
+git commit -m "Update from Restocash v${CURRENT_VERSION}"
+git push origin main`}
+                        </pre>
+                      </div>
+
+                      <div className="text-[10px] text-slate-400 border-t border-slate-800 pt-2 leading-relaxed">
+                        💡 <strong className="text-amber-300">ملاحظة هامة:</strong> إذا ظهرت رسالة
+                        خطأ <code className="text-amber-200">Authentication failed</code> عند
+                        استخدام الطرفية، فإن GitHub يتطلب استخدام Token ككلمة مرور وليس كلمة مرور
+                        الحساب العادية.
+                      </div>
                     </div>
                   </div>
                 </div>

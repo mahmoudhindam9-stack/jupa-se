@@ -100,6 +100,88 @@ export default {
         });
       }
 
+      if (url.pathname === "/api/github/push" && request.method === "POST") {
+        try {
+          const body = await request.json();
+          const token = body?.token?.trim();
+          const targetRepo = body?.repo?.trim() || "mahmoudhindam9-stack/jupa-sep";
+          const commitMsg = body?.commitMessage?.trim() || "تحديثات النظام وإصلاح الأكواد";
+
+          if (!token) {
+            return new Response(
+              JSON.stringify({
+                error: "يرجى إدخال GitHub Personal Access Token (رمز الوصول الشخصي) لتخويل الرفع.",
+              }),
+              {
+                status: 400,
+                headers: { "Content-Type": "application/json" },
+              },
+            );
+          }
+
+          const { execSync } = await import("node:child_process");
+
+          // Ensure git user is set
+          try {
+            execSync('git config user.name "mahmoudhindam9-stack"', { stdio: "pipe" });
+            execSync('git config user.email "mahmoudhindam9@gmail.com"', { stdio: "pipe" });
+          } catch (e) {}
+
+          // Add any pending changes and commit
+          try {
+            execSync("git add -A", { stdio: "pipe" });
+            const cleanMsg = commitMsg.replace(/"/g, '\\"');
+            execSync(`git commit -m "${cleanMsg}"`, { stdio: "pipe" });
+          } catch (cErr) {
+            // Nothing new to commit is fine
+          }
+
+          // Push to GitHub using token authentication
+          const sanitizedToken = encodeURIComponent(token);
+          const pushUrl = `https://${sanitizedToken}@github.com/${targetRepo}.git`;
+
+          const pushOutput = execSync(`git push ${pushUrl} main`, {
+            encoding: "utf8",
+            stdio: "pipe",
+          });
+
+          return new Response(
+            JSON.stringify({
+              success: true,
+              message: `تم رفع التحديثات إلى GitHub (${targetRepo}) بنجاح! 🚀`,
+              output: pushOutput || "Updates pushed successfully",
+            }),
+            {
+              headers: { "Content-Type": "application/json" },
+            },
+          );
+        } catch (pushErr: any) {
+          console.error("Git push failed:", pushErr);
+          const errMsg = pushErr?.stderr?.toString() || pushErr?.message || "فشلت عملية الرفع";
+          let friendlyMsg = errMsg;
+          if (
+            errMsg.includes("Authentication failed") ||
+            errMsg.includes("Invalid username or token")
+          ) {
+            friendlyMsg =
+              "فشل المصادقة: رمز GitHub Token غير صحيح أو انتهت صلاحيته أو لا يملك صلاحية repo.";
+          } else if (errMsg.includes("Permission to") && errMsg.includes("denied")) {
+            friendlyMsg =
+              "تم رفض الإذن: تأكد من أن الرمز يملك صلاحيات الكتابة write على هذا المستودع.";
+          }
+          return new Response(
+            JSON.stringify({
+              error: friendlyMsg,
+              details: errMsg,
+            }),
+            {
+              status: 500,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
+        }
+      }
+
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);
