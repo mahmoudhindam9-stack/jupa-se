@@ -137,8 +137,9 @@ export default {
           }
 
           // Push to GitHub using token authentication
+          // Push to GitHub using token authentication (standard GitHub x-access-token format)
           const sanitizedToken = encodeURIComponent(token);
-          const pushUrl = `https://${sanitizedToken}@github.com/${targetRepo}.git`;
+          const pushUrl = `https://x-access-token:${sanitizedToken}@github.com/${targetRepo}.git`;
 
           const pushOutput = execSync(`git push ${pushUrl} main`, {
             encoding: "utf8",
