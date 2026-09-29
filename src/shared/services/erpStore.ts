@@ -349,6 +349,11 @@ export interface UserPermission {
   system_manage_users?: boolean;
   system_backup_update?: boolean;
   system_audit_logs?: boolean;
+
+  // Park & Tickets (Mall)
+  manage_park_shifts?: boolean;
+  delete_park_shifts?: boolean;
+  park_reports?: boolean;
 }
 
 export interface Employee {
@@ -558,6 +563,271 @@ export interface MallGardenExpense {
   paid_to?: string;
   notes?: string;
 }
+
+export interface ParkTicketItem {
+  id: string;
+  name_ar: string;
+  name_en?: string;
+  type: "single_regular" | "family_regular" | "single_holiday" | "family_holiday" | "custom";
+  price_usd: number;
+  persons_count?: number;
+  is_active: boolean;
+}
+
+export interface ParkCustomer {
+  id: string;
+  name_ar: string;
+  phone?: string;
+  company?: string;
+  account_code?: string;
+  notes?: string;
+}
+
+export interface ParkOperationalTreasury {
+  id: string;
+  name_ar: string;
+  payment_method: "cash" | "visa" | "bank_transfer" | "credit";
+  currency: "USD" | "SSP";
+  linked_real_treasury_id: string;
+  balance: number;
+}
+
+export interface ParkTicketCartItem {
+  ticket_id: string;
+  name_ar: string;
+  price_usd: number;
+  quantity: number;
+  note?: string;
+}
+
+export interface ParkTicketTransaction {
+  id: string;
+  tx_number: string;
+  manual_tx_number?: string;
+  shift_id: string;
+  shift_number: string;
+  items: ParkTicketCartItem[];
+  subtotal_usd: number;
+  total_usd: number;
+  currency: "USD" | "SSP";
+  exchange_rate: number;
+  total_paid_in_currency: number;
+  payment_method: "cash" | "visa" | "bank_transfer" | "credit";
+  reference_number?: string;
+  customer_id?: string;
+  customer_name?: string;
+  operational_treasury_id: string;
+  linked_real_treasury_id: string;
+  status: "completed" | "refunded";
+  refund_reason?: string;
+  refund_tx_id?: string;
+  refund_journal_ref?: string;
+  refund_at?: string;
+  transaction_date: string;
+  transaction_time: string;
+  system_timestamp: string;
+  journal_entry_ref?: string;
+  created_by?: string;
+  notes?: string;
+}
+
+export interface ParkShift {
+  id: string;
+  shift_number: string;
+  auto_shift_number?: string;
+  start_at: string;
+  end_at?: string;
+  status: "open" | "closed";
+  cashier_name: string;
+  operational_treasury_balances_at_close?: Record<string, number>;
+  destination_transfers?: Array<{
+    op_treasury_id: string;
+    op_treasury_name: string;
+    real_treasury_id: string;
+    real_treasury_name: string;
+    currency: "USD" | "SSP";
+    amount: number;
+    journal_ref?: string;
+  }>;
+  generated_journal_refs?: string[];
+  notes?: string;
+  total_revenue_usd?: number;
+  total_transactions_count?: number;
+}
+
+export interface RestaurantShift {
+  id: string;
+  shift_number: string;
+  auto_shift_number?: string;
+  start_at: string;
+  end_at?: string;
+  status: "open" | "closed";
+  cashier_name: string;
+  cashier_id?: string;
+  cashier_type?: "hr" | "manual";
+  opening_balance?: number;
+  opening_notes?: string;
+  closing_notes?: string;
+  total_sales?: number;
+  total_tax?: number;
+  total_discount?: number;
+  total_service_fee?: number;
+  total_delivery_fee?: number;
+  total_refunds?: number;
+  net_total?: number;
+  orders_count?: number;
+  refunds_count?: number;
+  payment_breakdown?: {
+    cash?: number;
+    card?: number;
+    wallet?: number;
+  };
+  generated_journal_refs?: string[];
+  notes?: string;
+}
+
+export interface RestaurantRefundRecord {
+  id: string;
+  order_number: number;
+  shift_id: string;
+  shift_number: string;
+  refund_amount: number;
+  refund_reason: string;
+  created_at: string;
+  journal_ref?: string;
+  cashier_name: string;
+  payment_method: "cash" | "card" | "wallet";
+  currency: string;
+  items_summary?: string;
+}
+
+export const DEFAULT_PARK_TICKET_ITEMS: ParkTicketItem[] = [
+  {
+    id: "park-tkt-1",
+    name_ar: "تذكرة دخول فردية - أيام عادية",
+    name_en: "Single Entrance Ticket – Regular Days",
+    type: "single_regular",
+    price_usd: 5,
+    persons_count: 1,
+    is_active: true,
+  },
+  {
+    id: "park-tkt-2",
+    name_ar: "تذكرة دخول عائلية - أيام عادية - 5 أفراد",
+    name_en: "Family Entrance Ticket – Regular Days – 5 Persons",
+    type: "family_regular",
+    price_usd: 20,
+    persons_count: 5,
+    is_active: true,
+  },
+  {
+    id: "park-tkt-3",
+    name_ar: "تذكرة دخول فردية - عطلات وأعياد",
+    name_en: "Single Entrance Ticket – Holidays",
+    type: "single_holiday",
+    price_usd: 10,
+    persons_count: 1,
+    is_active: true,
+  },
+  {
+    id: "park-tkt-4",
+    name_ar: "تذكرة دخول عائلية - عطلات وأعياد - 5 أفراد",
+    name_en: "Family Entrance Ticket – Holidays – 5 Persons",
+    type: "family_holiday",
+    price_usd: 35,
+    persons_count: 5,
+    is_active: true,
+  },
+];
+
+export const DEFAULT_PARK_CUSTOMERS: ParkCustomer[] = [
+  { id: "cust-park-1", name_ar: "عميل نقدي عام", phone: "-", company: "-" },
+  {
+    id: "cust-park-2",
+    name_ar: "شركة الرحلات السياحية",
+    phone: "0912345678",
+    company: "السياحة الدولية",
+  },
+  {
+    id: "cust-park-3",
+    name_ar: "مدرسة الأمل النموذجية",
+    phone: "0987654321",
+    company: "وزارة التربية",
+  },
+  {
+    id: "cust-park-4",
+    name_ar: "نقابة المهندسين",
+    phone: "0911223344",
+    company: "النقابات المهنية",
+  },
+];
+
+export const DEFAULT_PARK_OPERATIONAL_TREASURIES: ParkOperationalTreasury[] = [
+  {
+    id: "opt-cash-usd",
+    name_ar: "Park Tickets - Cash USD",
+    payment_method: "cash",
+    currency: "USD",
+    linked_real_treasury_id: "tr-1",
+    balance: 0,
+  },
+  {
+    id: "opt-visa-usd",
+    name_ar: "Park Tickets - Visa USD",
+    payment_method: "visa",
+    currency: "USD",
+    linked_real_treasury_id: "tr-1",
+    balance: 0,
+  },
+  {
+    id: "opt-transfer-usd",
+    name_ar: "Park Tickets - Transfer USD",
+    payment_method: "bank_transfer",
+    currency: "USD",
+    linked_real_treasury_id: "tr-1",
+    balance: 0,
+  },
+  {
+    id: "opt-credit-usd",
+    name_ar: "Park Tickets - Credit USD",
+    payment_method: "credit",
+    currency: "USD",
+    linked_real_treasury_id: "tr-1",
+    balance: 0,
+  },
+  {
+    id: "opt-cash-ssp",
+    name_ar: "Park Tickets - Cash SSP",
+    payment_method: "cash",
+    currency: "SSP",
+    linked_real_treasury_id: "tr-1",
+    balance: 0,
+  },
+  {
+    id: "opt-visa-ssp",
+    name_ar: "Park Tickets - Visa SSP",
+    payment_method: "visa",
+    currency: "SSP",
+    linked_real_treasury_id: "tr-1",
+    balance: 0,
+  },
+  {
+    id: "opt-transfer-ssp",
+    name_ar: "Park Tickets - Transfer SSP",
+    payment_method: "bank_transfer",
+    currency: "SSP",
+    linked_real_treasury_id: "tr-1",
+    balance: 0,
+  },
+  {
+    id: "opt-credit-ssp",
+    name_ar: "Park Tickets - Credit SSP",
+    payment_method: "credit",
+    currency: "SSP",
+    linked_real_treasury_id: "tr-1",
+    balance: 0,
+  },
+];
 
 const DEFAULT_GARDEN_REVENUES: MallGardenRevenue[] = [
   {
@@ -1490,6 +1760,18 @@ export interface ERPStoreState {
   mallGardenRevenues: MallGardenRevenue[];
   mallGardenExpenses: MallGardenExpense[];
   mallTerminatedContractsArchive: TerminatedContractRecord[];
+  parkTicketItems?: ParkTicketItem[];
+  parkCustomers?: ParkCustomer[];
+  parkOperationalTreasuries?: ParkOperationalTreasury[];
+  parkTicketTransactions?: ParkTicketTransaction[];
+  parkShifts?: ParkShift[];
+  parkActiveShift?: ParkShift | null;
+  park_shifts_cleared_2026_09_03_clean?: boolean;
+  park_shifts_v2_hard_reset_2026_09_03?: boolean;
+  park_sales_hard_zero_reset_v4_2026_09_03?: boolean;
+  restaurantShifts?: RestaurantShift[];
+  restaurantActiveShift?: RestaurantShift | null;
+  restaurantRefundRecords?: RestaurantRefundRecord[];
 }
 
 const DEFAULT_BRANCHES: Branch[] = [
@@ -1851,35 +2133,17 @@ const DEFAULT_TREASURIES: TreasuryAccount[] = [
   },
 ];
 
-const DEFAULT_SUPPLIERS: Supplier[] = [
-  {
-    id: "sup-1",
-    name_ar: "شركة الهدى للأغذية والدواجن",
-    phone: "01023456789",
-    balance: 0,
-    account_code: "24010100",
-    currency: "USD",
-    deleted: false,
-  },
-  {
-    id: "sup-2",
-    name_ar: "المتحدون للخضروات والفاكهة",
-    phone: "01123456789",
-    balance: 0,
-    account_code: "24010150",
-    currency: "USD",
-    deleted: false,
-  },
-  {
-    id: "sup-3",
-    name_ar: "توب كواليتي لمستلزمات التعبئة",
-    phone: "01223456789",
-    balance: 0,
-    account_code: "24010160",
-    currency: "USD",
-    deleted: false,
-  },
-];
+const DEFAULT_SUPPLIERS: Supplier[] = ORACLE_MIGRATION_ACCOUNTS.filter(
+  (a) => a.parent_code === "24010" || (a.code.startsWith("24010") && a.level === 4),
+).map((a) => ({
+  id: `sup-${a.code}`,
+  name_ar: a.name_ar,
+  phone: "",
+  balance: 0,
+  account_code: a.code,
+  currency: (a.currency as any) || "USD",
+  deleted: false,
+}));
 
 const DEFAULT_USERS: SystemUser[] = [
   {
@@ -2025,8 +2289,81 @@ export class ERPStore {
   listeners = [];
   constructor() {
     this.state = this.loadState();
+    if (!this.state.park_sales_hard_zero_reset_v4_2026_09_03) {
+      this.state.parkShifts = [];
+      this.state.parkActiveShift = null;
+      this.state.parkTicketTransactions = [];
+      if (this.state.parkOperationalTreasuries) {
+        this.state.parkOperationalTreasuries.forEach((t: any) => {
+          t.balance = 0;
+        });
+      }
+      if (this.state.journalEntries) {
+        this.state.journalEntries = this.state.journalEntries.filter((je: any) => {
+          const desc = String(je.description || "");
+          const ref = String(je.reference || "");
+          return (
+            !desc.includes("تذاكر الحديقة") &&
+            !desc.includes("إغلاق وردية تذاكر") &&
+            !desc.includes("ترحيل خزينة تذاكر") &&
+            !ref.startsWith("PK-") &&
+            !ref.startsWith("REF-PK-") &&
+            !ref.startsWith("SH-")
+          );
+        });
+      }
+      this.state.park_sales_hard_zero_reset_v4_2026_09_03 = true;
+      this.saveState();
+      this.saveToIDB(this.state);
+    }
+    // Safeguard: always wipe any stale #5 or #7 shifts or invalid sessions
+    if (this.state.parkShifts && this.state.parkShifts.length > 0) {
+      this.state.parkShifts = this.state.parkShifts.filter((s: any) => {
+        const title = String(s.shift_number || "");
+        const autoN = String(s.auto_shift_number || "");
+        const sId = String(s.id || "");
+        return (
+          !title.includes("5") &&
+          !title.includes("7") &&
+          autoN !== "5" &&
+          autoN !== "7" &&
+          !sId.includes("5") &&
+          !sId.includes("7")
+        );
+      });
+      if (this.state.parkActiveShift) {
+        const activeTitle = String(this.state.parkActiveShift.shift_number || "");
+        const activeAutoN = String(this.state.parkActiveShift.auto_shift_number || "");
+        const activeId = String(this.state.parkActiveShift.id || "");
+        if (
+          activeTitle.includes("5") ||
+          activeTitle.includes("7") ||
+          activeAutoN === "5" ||
+          activeAutoN === "7" ||
+          activeId.includes("5") ||
+          activeId.includes("7")
+        ) {
+          this.state.parkActiveShift = null;
+        }
+      }
+      this.saveState();
+    }
     this.recalculateAccountBalances();
     this.initIndexedDB();
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("storage", (e) => {
+        if (e.key === "restocash_erp_state" && e.newValue) {
+          try {
+            const newState = JSON.parse(e.newValue);
+            this.state = newState;
+            this.notify();
+          } catch (err) {
+            console.error("Failed to parse ERP state from storage event:", err);
+          }
+        }
+      });
+    }
   }
 
   saveToIDB(data) {
@@ -2073,15 +2410,51 @@ export class ERPStore {
           getReq.onsuccess = () => {
             if (getReq.result) {
               const idbState = getReq.result;
+              if (!idbState.park_sales_hard_zero_reset_v4_2026_09_03) {
+                idbState.parkShifts = [];
+                idbState.parkActiveShift = null;
+                idbState.parkTicketTransactions = [];
+                if (idbState.parkOperationalTreasuries) {
+                  idbState.parkOperationalTreasuries.forEach((t: any) => {
+                    t.balance = 0;
+                  });
+                }
+                idbState.park_sales_hard_zero_reset_v4_2026_09_03 = true;
+                this.saveToIDB(idbState);
+              }
+
               const idbEntriesCount = idbState.journalEntries?.length || 0;
               const currentEntriesCount = this.state.journalEntries?.length || 0;
               const idbUpdated = idbState._updatedAt || 0;
               const currentUpdated = this.state._updatedAt || 0;
 
               if (idbEntriesCount > currentEntriesCount || idbUpdated > currentUpdated) {
+                const cleanedIdbShifts = (idbState.parkShifts || []).filter((s: any) => {
+                  const title = String(s.shift_number || "");
+                  const autoN = String(s.auto_shift_number || "");
+                  const sId = String(s.id || "");
+                  return (
+                    !title.includes("5") &&
+                    !title.includes("7") &&
+                    autoN !== "5" &&
+                    autoN !== "7" &&
+                    !sId.includes("5") &&
+                    !sId.includes("7")
+                  );
+                });
                 this.state = {
                   ...this.getDefaultState(),
                   ...idbState,
+                  parkShifts: idbState.park_sales_hard_zero_reset_v4_2026_09_03
+                    ? cleanedIdbShifts
+                    : [],
+                  parkActiveShift: idbState.park_sales_hard_zero_reset_v4_2026_09_03
+                    ? idbState.parkActiveShift || null
+                    : null,
+                  parkTicketTransactions: idbState.park_sales_hard_zero_reset_v4_2026_09_03
+                    ? idbState.parkTicketTransactions || []
+                    : [],
+                  park_sales_hard_zero_reset_v4_2026_09_03: true,
                 };
                 this.recalculateAccountBalances();
                 this.notify();
@@ -2364,6 +2737,47 @@ export class ERPStore {
               ? parsed.mallGardenExpenses
               : DEFAULT_GARDEN_EXPENSES,
           mallTerminatedContractsArchive: parsed.mallTerminatedContractsArchive || [],
+          parkTicketItems:
+            parsed.parkTicketItems && parsed.parkTicketItems.length > 0
+              ? parsed.parkTicketItems
+              : DEFAULT_PARK_TICKET_ITEMS,
+          parkCustomers:
+            parsed.parkCustomers && parsed.parkCustomers.length > 0
+              ? parsed.parkCustomers
+              : DEFAULT_PARK_CUSTOMERS,
+          parkOperationalTreasuries:
+            parsed.parkOperationalTreasuries && parsed.parkOperationalTreasuries.length > 0
+              ? parsed.park_sales_hard_zero_reset_v4_2026_09_03
+                ? parsed.parkOperationalTreasuries
+                : parsed.parkOperationalTreasuries.map((t: any) => ({ ...t, balance: 0 }))
+              : DEFAULT_PARK_OPERATIONAL_TREASURIES,
+          parkTicketTransactions: parsed.park_sales_hard_zero_reset_v4_2026_09_03
+            ? parsed.parkTicketTransactions || []
+            : [],
+          parkShifts: parsed.park_sales_hard_zero_reset_v4_2026_09_03
+            ? (parsed.parkShifts || []).filter((s: any) => {
+                const title = String(s.shift_number || "");
+                const autoN = String(s.auto_shift_number || "");
+                const sId = String(s.id || "");
+                return (
+                  !title.includes("5") &&
+                  !title.includes("7") &&
+                  autoN !== "5" &&
+                  autoN !== "7" &&
+                  !sId.includes("5") &&
+                  !sId.includes("7")
+                );
+              })
+            : [],
+          parkActiveShift: parsed.park_sales_hard_zero_reset_v4_2026_09_03
+            ? parsed.parkActiveShift || null
+            : null,
+          park_sales_hard_zero_reset_v4_2026_09_03: true,
+          park_shifts_v2_hard_reset_2026_09_03: true,
+          park_shifts_cleared_2026_09_03_clean: true,
+          restaurantShifts: parsed.restaurantShifts || [],
+          restaurantActiveShift: parsed.restaurantActiveShift || null,
+          restaurantRefundRecords: parsed.restaurantRefundRecords || [],
         };
       } catch (e) {
         console.error("Error parsing ERP state:", e);
@@ -2413,7 +2827,7 @@ export class ERPStore {
     s.loans = [];
     s.payrolls = [];
     s.auditLogs = [];
-    
+
     s.treasuries = JSON.parse(JSON.stringify(DEFAULT_TREASURIES));
     s.treasuries.forEach((t) => {
       t.balance = 0;
@@ -2430,7 +2844,7 @@ export class ERPStore {
     this.recalculateAccountBalances();
     this.saveState();
     this.notify();
-    
+
     if (typeof window !== "undefined") {
       setTimeout(() => {
         window.location.reload();
@@ -2474,6 +2888,16 @@ export class ERPStore {
       mallGardenRevenues: DEFAULT_GARDEN_REVENUES,
       mallGardenExpenses: DEFAULT_GARDEN_EXPENSES,
       mallTerminatedContractsArchive: [],
+      parkTicketItems: DEFAULT_PARK_TICKET_ITEMS,
+      parkCustomers: DEFAULT_PARK_CUSTOMERS,
+      parkOperationalTreasuries: DEFAULT_PARK_OPERATIONAL_TREASURIES,
+      parkTicketTransactions: [],
+      parkShifts: [],
+      parkActiveShift: null,
+      park_shifts_cleared_2026_09_03_clean: true,
+      restaurantShifts: [],
+      restaurantActiveShift: null,
+      restaurantRefundRecords: [],
     };
   }
   saveState() {
@@ -2524,6 +2948,7 @@ export class ERPStore {
     };
   }
   notify() {
+    this.state = { ...this.state };
     this.listeners.forEach((l) => l(this.getState()));
   }
   resetRestaurantSales() {
@@ -4221,6 +4646,28 @@ export class ERPStore {
     return { success: true };
   }
 
+  getAccountName(accountCode: string): string {
+    const acc = (this.state.accounts || []).find((a) => a.code === accountCode);
+    return acc ? acc.name_ar : accountCode;
+  }
+
+  updateJournalEntryAttachments(entryId: string, attachments: any[]) {
+    const entry = (this.state.journalEntries || []).find(
+      (e) => e.id === entryId || e.reference === entryId,
+    );
+    if (entry) {
+      entry.attachments = [...(entry.attachments || []), ...attachments];
+      this.saveState();
+      this.notify();
+    }
+  }
+
+  async syncWithCloud(): Promise<boolean> {
+    this.saveState();
+    this.notify();
+    return true;
+  }
+
   getAccountLedgerEntries(accountCode) {
     const entries = [];
     const acc = this.state.accounts.find((a) => a.code === accountCode);
@@ -4301,74 +4748,126 @@ export class ERPStore {
     periodVal?: any,
     journalNumVal?: any,
   ) {
+    // 1. Determine target Year and Month
+    let targetYear = new Date().getFullYear();
+    let targetMonth = new Date().getMonth() + 1;
+
+    if (dateStr) {
+      const d = new Date(dateStr);
+      if (!isNaN(d.getTime())) {
+        targetYear = d.getFullYear();
+        targetMonth = d.getMonth() + 1;
+      }
+    }
+
+    if (periodVal !== undefined && periodVal !== null && String(periodVal).trim() !== "") {
+      const pNum = parseInt(String(periodVal).trim(), 10);
+      if (!isNaN(pNum) && pNum >= 1 && pNum <= 12) {
+        targetMonth = pNum;
+      }
+    }
+
+    const formattedMonth = String(targetMonth).padStart(2, "0");
+
+    // Helper: Parse MM/NN or M/N or JV-MM/NN reference into period and sequence
+    const parseRefSeq = (refStr: string): { p: number; seq: number } | null => {
+      if (!refStr) return null;
+      const str = String(refStr).trim();
+      const match = str.match(/^(?:JV-)?(\d{1,2})\/(\d{1,})$/i);
+      if (match) {
+        const p = parseInt(match[1], 10);
+        const seq = parseInt(match[2], 10);
+        if (!isNaN(p) && p >= 1 && p <= 12 && !isNaN(seq) && seq > 0) {
+          return { p, seq };
+        }
+      }
+      return null;
+    };
+
+    // Helper: Extract entry year and month
+    const getEntryYearAndMonth = (je: any): { year: number; month: number } => {
+      const dStr = je.date || je.created_at;
+      if (dStr) {
+        const d = new Date(dStr);
+        if (!isNaN(d.getTime())) {
+          return { year: d.getFullYear(), month: d.getMonth() + 1 };
+        }
+      }
+      return { year: targetYear, month: targetMonth };
+    };
+
+    // Helper: Check if entry is in target year & month
+    const isSamePeriod = (je: any) => {
+      if (!je) return false;
+      const { year, month } = getEntryYearAndMonth(je);
+      return year === targetYear && month === targetMonth;
+    };
+
+    // Gather existing reference sequences for the same month and year
+    const usedSeqs = new Set<number>();
+    let maxSeq = 0;
+
+    const scanEntry = (je: any) => {
+      if (!je || !je.reference) return;
+      if (!isSamePeriod(je)) return;
+
+      const parsed = parseRefSeq(je.reference);
+      if (parsed && parsed.p === targetMonth) {
+        usedSeqs.add(parsed.seq);
+        if (parsed.seq > maxSeq) {
+          maxSeq = parsed.seq;
+        }
+      }
+    };
+
+    if (Array.isArray(this.state.journalEntries)) {
+      this.state.journalEntries.forEach(scanEntry);
+    }
+    if (Array.isArray(pendingEntries)) {
+      pendingEntries.forEach(scanEntry);
+    }
+
+    // 2. If providedRef is explicitly passed in MM/NN format, check if it's usable without duplication
     if (providedRef && String(providedRef).trim()) {
-      const trimmed = String(providedRef).trim();
-      if (trimmed.includes("/")) {
-        const parts = trimmed.split("/");
-        const pNum = parseInt(parts[0], 10);
-        const jNum = parseInt(parts[1], 10);
-        if (!isNaN(pNum) && !isNaN(jNum) && pNum >= 1 && pNum <= 12 && jNum > 0) {
-          return `${pNum}/${jNum}`;
+      const parsedProvided = parseRefSeq(providedRef);
+      if (parsedProvided && parsedProvided.p === targetMonth) {
+        if (!usedSeqs.has(parsedProvided.seq)) {
+          const formattedSeq = String(parsedProvided.seq).padStart(2, "0");
+          return `${formattedMonth}/${formattedSeq}`;
         }
       }
     }
 
-    // 1. Extract Month M from periodVal or date
-    let periodNum = 0;
-    if (periodVal !== undefined && periodVal !== null && String(periodVal).trim() !== "") {
-      const pNum = parseInt(String(periodVal).trim(), 10);
-      if (!isNaN(pNum) && pNum >= 1 && pNum <= 12) {
-        periodNum = pNum;
-      }
-    }
-
-    const d = dateStr ? new Date(dateStr) : new Date();
-    if (!periodNum) {
-      periodNum = isNaN(d.getTime()) ? new Date().getMonth() + 1 : d.getMonth() + 1;
-    }
-
+    // 3. Handle explicit journalNumVal if provided
     if (
       journalNumVal !== undefined &&
       journalNumVal !== null &&
       String(journalNumVal).trim() !== "" &&
       String(journalNumVal).trim() !== "0"
     ) {
-      const jTrim = String(journalNumVal).trim();
-      if (jTrim.includes("/")) {
-        const parts = jTrim.split("/");
-        const p = parseInt(parts[0], 10);
-        const j = parseInt(parts[1], 10);
-        if (!isNaN(p) && !isNaN(j)) return `${p}/${j}`;
-      }
-      const jNum = parseInt(jTrim, 10);
-      if (!isNaN(jNum)) {
-        return `${periodNum}/${jNum}`;
-      }
-    }
-
-    let maxSeq = 0;
-    const checkEntry = (je: any) => {
-      if (!je || !je.reference) return;
-      const ref = String(je.reference).trim();
-      if (ref.includes("/")) {
-        const parts = ref.split("/");
-        const p = parseInt(parts[0], 10);
-        const j = parseInt(parts[1], 10);
-        if (p === periodNum && !isNaN(j) && j > maxSeq) {
-          maxSeq = j;
+      const parsedVal = parseRefSeq(String(journalNumVal));
+      if (parsedVal && parsedVal.p === targetMonth) {
+        if (!usedSeqs.has(parsedVal.seq)) {
+          const formattedSeq = String(parsedVal.seq).padStart(2, "0");
+          return `${formattedMonth}/${formattedSeq}`;
+        }
+      } else {
+        const jNum = parseInt(String(journalNumVal).trim(), 10);
+        if (!isNaN(jNum) && jNum > 0 && !usedSeqs.has(jNum)) {
+          const formattedSeq = String(jNum).padStart(2, "0");
+          return `${formattedMonth}/${formattedSeq}`;
         }
       }
-    };
-
-    if (Array.isArray(this.state.journalEntries)) {
-      this.state.journalEntries.forEach(checkEntry);
-    }
-    if (Array.isArray(pendingEntries)) {
-      pendingEntries.forEach(checkEntry);
     }
 
-    const seq = maxSeq + 1;
-    return `${periodNum}/${seq}`;
+    // 4. Determine next sequence (maxSeq + 1, skipping any used numbers)
+    let nextSeq = maxSeq + 1;
+    while (usedSeqs.has(nextSeq)) {
+      nextSeq++;
+    }
+
+    const formattedSeq = String(nextSeq).padStart(2, "0");
+    return `${formattedMonth}/${formattedSeq}`;
   }
 
   getCanonicalAccountDefinition(code: string, preferredName?: string) {
@@ -4593,6 +5092,36 @@ export class ERPStore {
       `INV-${orderNumber}`,
       currency,
     );
+
+    // Track in active restaurant shift if one is open
+    const activeShift = this.getActiveRestaurantShift();
+    if (activeShift) {
+      if (!activeShift.generated_journal_refs) activeShift.generated_journal_refs = [];
+      if (!activeShift.generated_journal_refs.includes(`INV-${orderNumber}`)) {
+        activeShift.generated_journal_refs.push(`INV-${orderNumber}`);
+      }
+      activeShift.orders_count = (activeShift.orders_count || 0) + 1;
+      activeShift.total_sales = (activeShift.total_sales || 0) + Number(total || 0);
+      activeShift.total_tax = (activeShift.total_tax || 0) + Number(tax || 0);
+      activeShift.net_total = Math.max(
+        0,
+        (activeShift.total_sales || 0) - (activeShift.total_refunds || 0),
+      );
+      if (!activeShift.payment_breakdown) {
+        activeShift.payment_breakdown = { cash: 0, card: 0, wallet: 0 };
+      }
+      if (paymentMethod === "card") {
+        activeShift.payment_breakdown.card =
+          (activeShift.payment_breakdown.card || 0) + Number(total || 0);
+      } else if (paymentMethod === "wallet") {
+        activeShift.payment_breakdown.wallet =
+          (activeShift.payment_breakdown.wallet || 0) + Number(total || 0);
+      } else {
+        activeShift.payment_breakdown.cash =
+          (activeShift.payment_breakdown.cash || 0) + Number(total || 0);
+      }
+      this.saveState();
+    }
     try {
       this.addTreasuryTransaction(
         treasuryId,
@@ -5509,6 +6038,77 @@ export class ERPStore {
     }
     return newDoc;
   }
+  recordInventoryDocTransaction(tx: {
+    inventory_id: string;
+    type: string;
+    quantity: number;
+    note?: string;
+    currency?: string;
+    exchange_rate?: number;
+    treasury_id?: string;
+    treasury_name?: string;
+    supplier_id?: string;
+    supplier_name?: string;
+    supplier_account_code?: string;
+    transaction_date?: string;
+    transaction_time?: string;
+    system_timestamp?: string;
+    tx_number?: string;
+    journal_entry_ref?: string;
+  }) {
+    if (!this.state.inventoryDocuments) this.state.inventoryDocuments = [];
+    const docNumber = tx.tx_number || `DOC-${Date.now()}`;
+    const newDoc = {
+      id: "doc-tx-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6),
+      doc_number: docNumber,
+      doc_type: (tx.type === "in"
+        ? "receipt_note"
+        : tx.type === "out"
+          ? "issue_note"
+          : "stock_adjustment") as any,
+      type: (tx.type === "in"
+        ? "receipt_note"
+        : tx.type === "out"
+          ? "issue_note"
+          : "stock_adjustment") as any,
+      status: "completed" as const,
+      doc_date: tx.transaction_date || new Date().toISOString().split("T")[0],
+      created_at: new Date().toISOString(),
+      items: [
+        {
+          inventory_id: tx.inventory_id,
+          quantity: tx.quantity,
+          unit_cost: 0,
+          total_cost: 0,
+          notes: tx.note || "",
+        },
+      ],
+      notes: tx.note,
+    };
+    this.state.inventoryDocuments.unshift(newDoc);
+
+    try {
+      inventoryService
+        .addTransaction({
+          inventory_id: tx.inventory_id,
+          type: (tx.type === "in" ||
+          tx.type === "out" ||
+          tx.type === "transfer" ||
+          tx.type === "waste"
+            ? tx.type
+            : "adjustment") as any,
+          quantity: tx.quantity,
+          note: tx.note,
+          created_at: tx.system_timestamp || new Date().toISOString(),
+        })
+        .catch((err) => console.warn("inventoryService.addTransaction background notice:", err));
+    } catch (e) {
+      console.warn("inventoryService notice:", e);
+    }
+
+    this.saveState();
+    return newDoc;
+  }
   cancelInventoryDocument(docId) {
     if (!this.state.inventoryDocuments) return false;
     const doc = this.state.inventoryDocuments.find((d) => d.id === docId);
@@ -6358,17 +6958,19 @@ export class ERPStore {
     if (rev.treasury_id && rev.amount > 0) {
       const treasury = (this.state.treasuries || []).find((t) => t.id === rev.treasury_id);
       if (treasury) {
-        const treasuryAccountCode = treasury.account_code || (treasury.type === "bank" ? "102000" : "101000");
+        const treasuryAccountCode =
+          treasury.account_code || (treasury.type === "bank" ? "102000" : "101000");
         const curr = (treasury.currency || "USD").toUpperCase();
         const rate = this.getExchangeRate(curr);
-        
+
         let revAccountCode = "401000"; // default sales revenue
-        if (rev.category === "garden_ticket") revAccountCode = "401000"; // Can use a more specific revenue account if available
+        if (rev.category === "garden_ticket")
+          revAccountCode = "401000"; // Can use a more specific revenue account if available
         else if (rev.category === "parking") revAccountCode = "401000";
         else revAccountCode = "401000";
 
         const entryDesc = `تحصيل إيراد حديقة - ${rev.description}`;
-        
+
         const lines = [
           {
             account_code: treasuryAccountCode,
@@ -6385,17 +6987,17 @@ export class ERPStore {
             currency: curr,
             rate: rate,
             description: entryDesc,
-          }
+          },
         ];
-        
+
         this.addJournalEntry(
           entryDesc,
           lines,
           rev.receipt_number || `REC-G-${Date.now()}`,
           curr,
-          rev.date || new Date().toISOString().split("T")[0]
+          rev.date || new Date().toISOString().split("T")[0],
         );
-        
+
         this.addTreasuryTransaction(
           rev.treasury_id,
           "sales",
@@ -6404,7 +7006,7 @@ export class ERPStore {
           entryDesc,
           rev.receipt_number || `REC-G-${Date.now()}`,
           "cash",
-          null
+          null,
         );
       }
     }
@@ -6433,14 +7035,15 @@ export class ERPStore {
     if (exp.treasury_id && exp.amount > 0) {
       const treasury = (this.state.treasuries || []).find((t) => t.id === exp.treasury_id);
       if (treasury) {
-        const treasuryAccountCode = treasury.account_code || (treasury.type === "bank" ? "102000" : "101000");
+        const treasuryAccountCode =
+          treasury.account_code || (treasury.type === "bank" ? "102000" : "101000");
         const curr = (treasury.currency || "USD").toUpperCase();
         const rate = this.getExchangeRate(curr);
-        
+
         const expAccountCode = "502000"; // generic expense for salary or 503000 for maintenance. Let's use 502000 as default placeholder, since it's just generic.
-        
+
         const entryDesc = `دفع مصروف حديقة/مول - ${exp.title} - ${exp.paid_to || ""}`;
-        
+
         const lines = [
           {
             account_code: expAccountCode,
@@ -6457,17 +7060,17 @@ export class ERPStore {
             currency: curr,
             rate: rate,
             description: entryDesc,
-          }
+          },
         ];
-        
+
         this.addJournalEntry(
           entryDesc,
           lines,
           `EXP-G-${Date.now()}`,
           curr,
-          exp.date || new Date().toISOString().split("T")[0]
+          exp.date || new Date().toISOString().split("T")[0],
         );
-        
+
         this.addTreasuryTransaction(
           exp.treasury_id,
           "expense",
@@ -6476,7 +7079,7 @@ export class ERPStore {
           entryDesc,
           `EXP-G-${Date.now()}`,
           "cash",
-          null
+          null,
         );
       }
     }
@@ -6723,6 +7326,1098 @@ export class ERPStore {
       totalRent: totalGrandRent,
       entries: createdEntries,
     };
+  }
+
+  // ==========================================
+  // PARK TICKETS & POS MANAGEMENT METHODS
+  // ==========================================
+
+  getParkTicketItems(): ParkTicketItem[] {
+    return this.state.parkTicketItems || DEFAULT_PARK_TICKET_ITEMS;
+  }
+
+  addParkTicketItem(item: Partial<ParkTicketItem>) {
+    const newItem: ParkTicketItem = {
+      id: "park-tkt-" + Date.now(),
+      name_ar: item.name_ar || "تذكرة جديدة",
+      name_en: item.name_en || "",
+      type: item.type || "custom",
+      price_usd: Number(item.price_usd) || 5,
+      persons_count: Number(item.persons_count) || 1,
+      is_active: item.is_active !== undefined ? item.is_active : true,
+    };
+    this.state.parkTicketItems = [
+      ...(this.state.parkTicketItems || DEFAULT_PARK_TICKET_ITEMS),
+      newItem,
+    ];
+    this.saveState();
+    this.logAction(
+      "ADMIN",
+      "إضافة نوع تذكرة",
+      `تم إضافة تذكرة ${newItem.name_ar} بسعر $${newItem.price_usd}`,
+      "CREATE",
+    );
+    return newItem;
+  }
+
+  updateParkTicketItem(id: string, updates: Partial<ParkTicketItem>) {
+    this.state.parkTicketItems = (this.state.parkTicketItems || DEFAULT_PARK_TICKET_ITEMS).map(
+      (t) => (t.id === id ? { ...t, ...updates } : t),
+    );
+    this.saveState();
+    this.logAction("ADMIN", "تحديث تذكرة", `تم تحديث بيانات التذكرة رقم ${id}`, "UPDATE");
+  }
+
+  deleteParkTicketItem(id: string) {
+    const item = (this.state.parkTicketItems || DEFAULT_PARK_TICKET_ITEMS).find((t) => t.id === id);
+    this.state.parkTicketItems = (this.state.parkTicketItems || DEFAULT_PARK_TICKET_ITEMS).filter(
+      (t) => t.id !== id,
+    );
+    this.saveState();
+    this.logAction("ADMIN", "حذف نوع تذكرة", `تم حذف التذكرة ${item?.name_ar || id}`, "DELETE");
+  }
+
+  getParkCustomers(): ParkCustomer[] {
+    return this.state.parkCustomers || DEFAULT_PARK_CUSTOMERS;
+  }
+
+  getParkTicketTransactions(): ParkTicketTransaction[] {
+    return this.state.parkTicketTransactions || [];
+  }
+
+  getJournalEntries(): JournalEntry[] {
+    return this.state.journalEntries || [];
+  }
+
+  addParkCustomer(customer: Partial<ParkCustomer>) {
+    const newCust: ParkCustomer = {
+      id: "cust-park-" + Date.now(),
+      name_ar: customer.name_ar || "عميل جديد",
+      phone: customer.phone || "",
+      company: customer.company || "",
+      notes: customer.notes || "",
+    };
+    this.state.parkCustomers = [...(this.state.parkCustomers || DEFAULT_PARK_CUSTOMERS), newCust];
+    this.saveState();
+    this.logAction("ADMIN", "إضافة عميل تذاكر", `تم إضافة العميل ${newCust.name_ar}`, "CREATE");
+    return newCust;
+  }
+
+  updateParkCustomer(id: string, updates: Partial<ParkCustomer>) {
+    this.state.parkCustomers = (this.state.parkCustomers || DEFAULT_PARK_CUSTOMERS).map((c) =>
+      c.id === id ? { ...c, ...updates } : c,
+    );
+    this.saveState();
+  }
+
+  deleteParkCustomer(id: string) {
+    this.state.parkCustomers = (this.state.parkCustomers || DEFAULT_PARK_CUSTOMERS).filter(
+      (c) => c.id !== id,
+    );
+    this.saveState();
+  }
+
+  getParkOperationalTreasuries(): ParkOperationalTreasury[] {
+    return this.state.parkOperationalTreasuries || DEFAULT_PARK_OPERATIONAL_TREASURIES;
+  }
+
+  updateParkOperationalTreasuryLink(id: string, realTreasuryId: string) {
+    this.state.parkOperationalTreasuries = (
+      this.state.parkOperationalTreasuries || DEFAULT_PARK_OPERATIONAL_TREASURIES
+    ).map((t) => (t.id === id ? { ...t, linked_real_treasury_id: realTreasuryId } : t));
+    this.saveState();
+    this.logAction(
+      "ADMIN",
+      "ربط خزينة تشغيلية",
+      `تم ربط الخزينة ${id} بالخزينة الحقيقية ${realTreasuryId}`,
+      "UPDATE",
+    );
+  }
+
+  generateUniqueParkShiftNumber(): string {
+    const todayStr = new Date().toISOString().split("T")[0].replace(/-/g, "");
+    const shifts = this.state.parkShifts || [];
+    let count =
+      shifts.filter((s) => s.auto_shift_number?.includes(todayStr) || s.id?.includes(todayStr))
+        .length + 1;
+    let candidate = `PSH-${todayStr}-${count.toString().padStart(3, "0")}`;
+    while (shifts.some((s) => s.auto_shift_number === candidate || s.id === candidate)) {
+      count++;
+      candidate = `PSH-${todayStr}-${count.toString().padStart(3, "0")}`;
+    }
+    return candidate;
+  }
+
+  getParkShifts(): ParkShift[] {
+    return this.state.parkShifts || [];
+  }
+
+  getActiveParkShift(): ParkShift | null {
+    if (this.state.parkActiveShift && this.state.parkActiveShift.status === "open") {
+      return this.state.parkActiveShift;
+    }
+    return null;
+  }
+
+  setActiveParkShift(shiftId: string): ParkShift {
+    const shift = (this.state.parkShifts || []).find((s) => s.id === shiftId);
+    if (!shift) throw new Error("الوردية غير موجودة!");
+    this.state.parkActiveShift = shift;
+    this.saveState();
+    this.notify();
+    return shift;
+  }
+
+  startNewParkShift(payload: {
+    shift_number?: string;
+    auto_shift_number?: string;
+    cashier_name: string;
+    notes?: string;
+  }): ParkShift {
+    const autoNum = payload.auto_shift_number || this.generateUniqueParkShiftNumber();
+    const finalShiftNum =
+      payload.shift_number && payload.shift_number.trim()
+        ? payload.shift_number.trim()
+        : `وردية تذاكر #${(this.state.parkShifts?.length || 0) + 1} - ${new Date().toLocaleDateString("ar-EG")}`;
+
+    const newShift: ParkShift = {
+      id: "shift-park-" + Date.now(),
+      auto_shift_number: autoNum,
+      shift_number: finalShiftNum,
+      start_at: new Date().toISOString(),
+      status: "open",
+      cashier_name: payload.cashier_name || "أمين الصندوق",
+      notes: payload.notes,
+    };
+
+    this.state.parkActiveShift = newShift;
+    this.state.parkShifts = [newShift, ...(this.state.parkShifts || [])];
+    this.saveState();
+    this.logAction(
+      "POS",
+      "افتتاح وردية تذاكر",
+      `تم فتح وردية جديدة (${finalShiftNum} - رقم تلقائي: ${autoNum}) باسم: ${newShift.cashier_name}`,
+      "CREATE",
+    );
+    this.notify();
+    return newShift;
+  }
+
+  updateParkShift(shiftId: string, updates: Partial<ParkShift>): ParkShift {
+    const shifts = this.state.parkShifts || [];
+    const shift = shifts.find((s) => s.id === shiftId);
+    if (!shift) throw new Error("الوردية غير موجودة!");
+
+    const oldName = shift.shift_number;
+    Object.assign(shift, updates);
+
+    // If active shift matches, update active shift as well
+    if (this.state.parkActiveShift && this.state.parkActiveShift.id === shiftId) {
+      Object.assign(this.state.parkActiveShift, updates);
+    }
+
+    // If shift number changed, sync open transactions
+    if (updates.shift_number && updates.shift_number !== oldName) {
+      (this.state.parkTicketTransactions || []).forEach((t) => {
+        if (t.shift_id === shiftId) {
+          t.shift_number = updates.shift_number!;
+        }
+      });
+    }
+
+    this.saveState();
+    this.logAction(
+      "POS",
+      "تعديل بيانات وردية",
+      `تم تعديل بيانات الوردية (${shift.shift_number})`,
+      "UPDATE",
+    );
+    this.notify();
+    return shift;
+  }
+
+  updateParkTicketTransaction(
+    txId: string,
+    updates: Partial<ParkTicketTransaction>,
+  ): ParkTicketTransaction {
+    const txs = this.state.parkTicketTransactions || [];
+    const tx = txs.find((t) => t.id === txId || t.tx_number === txId);
+    if (!tx) throw new Error("معاملة التذاكر غير موجودة!");
+
+    Object.assign(tx, updates);
+    this.saveState();
+    this.logAction(
+      "POS",
+      "تعديل معاملة تذاكر",
+      `تم تعديل بيانات معاملة التذاكر (${tx.tx_number})`,
+      "UPDATE",
+    );
+    this.notify();
+    return tx;
+  }
+
+  deleteParkShift(shiftId: string): boolean {
+    const shifts = this.state.parkShifts || [];
+    const shift = shifts.find(
+      (s) => s.id === shiftId || s.shift_number === shiftId || s.auto_shift_number === shiftId,
+    );
+
+    // Remove from array safely
+    this.state.parkShifts = shifts.filter(
+      (s) => s.id !== shiftId && s.shift_number !== shiftId && s.auto_shift_number !== shiftId,
+    );
+
+    if (
+      this.state.parkActiveShift?.id === shiftId ||
+      this.state.parkActiveShift?.shift_number === shiftId
+    ) {
+      this.state.parkActiveShift = null;
+    }
+
+    // Remove associated transactions that belong to this shift
+    if (this.state.parkTicketTransactions) {
+      this.state.parkTicketTransactions = this.state.parkTicketTransactions.filter(
+        (tx) => tx.shift_id !== shiftId && tx.shift_number !== shiftId,
+      );
+    }
+
+    this.saveState();
+    this.saveToIDB(this.state);
+    if (shift) {
+      this.logAction(
+        "POS",
+        "حذف وردية تذاكر",
+        `تم حذف الوردية (${shift.shift_number}) من النظام بالكامل`,
+        "DELETE",
+      );
+    }
+    this.notify();
+    return true;
+  }
+
+  resetParkSalesData(): void {
+    this.state.parkShifts = [];
+    this.state.parkActiveShift = null;
+    this.state.parkTicketTransactions = [];
+    if (this.state.parkOperationalTreasuries) {
+      this.state.parkOperationalTreasuries = this.state.parkOperationalTreasuries.map((t: any) => ({
+        ...t,
+        balance: 0,
+      }));
+    }
+    if (this.state.journalEntries) {
+      this.state.journalEntries = this.state.journalEntries.filter((je: any) => {
+        const desc = String(je.description || "");
+        const ref = String(je.reference || "");
+        return (
+          !desc.includes("تذاكر الحديقة") &&
+          !desc.includes("إغلاق وردية تذاكر") &&
+          !desc.includes("ترحيل خزينة تذاكر") &&
+          !desc.includes("إقفال وردية") &&
+          !ref.startsWith("PK-") &&
+          !ref.startsWith("REF-PK-") &&
+          !ref.startsWith("SH-")
+        );
+      });
+    }
+    this.state.park_sales_hard_zero_reset_v4_2026_09_03 = true;
+    this.recalculateAccountBalances();
+    this.saveState();
+    this.saveToIDB(this.state);
+    this.notify();
+  }
+
+  resumeParkShift(shiftId: string): ParkShift {
+    const shifts = this.state.parkShifts || [];
+    const shift = shifts.find((s) => s.id === shiftId);
+    if (!shift) throw new Error("الوردية غير موجودة!");
+    if (shift.status !== "open") throw new Error("لا يمكن الدخول على وردية مغلقة!");
+
+    this.state.parkActiveShift = shift;
+    this.saveState();
+    this.notify();
+    return shift;
+  }
+
+  getOrCreateActiveParkShift(): ParkShift {
+    const active = this.state.parkActiveShift;
+    if (!active || active.status !== "open") {
+      throw new Error("لا توجد وردية مفتوحة حالياً. يرجى فتح وردية أولاً من صفحة الورديات.");
+    }
+    return active;
+  }
+
+  processParkTicketSale(saleData: {
+    items: ParkTicketCartItem[];
+    currency: "USD" | "SSP";
+    exchange_rate?: number;
+    payment_method: "cash" | "visa" | "bank_transfer" | "credit";
+    reference_number?: string;
+    manual_tx_number?: string;
+    customer_id?: string;
+    transaction_date?: string;
+    transaction_time?: string;
+    notes?: string;
+  }) {
+    if (!saleData.items || saleData.items.length === 0) {
+      throw new Error("سلة التذاكر فارغة!");
+    }
+
+    const shift = this.getActiveParkShift();
+    if (!shift || shift.status !== "open") {
+      throw new Error("لا توجد وردية مفتوحة حالياً! يجب فتح وردية أولاً لتسجيل المبيعات.");
+    }
+    const subtotalUsd = saleData.items.reduce(
+      (sum, item) => sum + item.price_usd * item.quantity,
+      0,
+    );
+    const curr = saleData.currency || "USD";
+    const baseRate = this.getExchangeRate(curr);
+    const rate = curr === "SSP" ? Number(saleData.exchange_rate || baseRate) : 1;
+
+    const totalPaidInCurrency = curr === "SSP" ? Math.round(subtotalUsd * rate) : subtotalUsd;
+
+    let customerName = "";
+    if (saleData.payment_method === "credit") {
+      if (!saleData.customer_id) {
+        throw new Error("يجب اختيار العميل عند الدفع الآجل!");
+      }
+      const cust = (this.state.parkCustomers || DEFAULT_PARK_CUSTOMERS).find(
+        (c) => c.id === saleData.customer_id,
+      );
+      customerName = cust ? cust.name_ar : "عميل آجل";
+    }
+
+    if (saleData.payment_method === "visa" && !saleData.reference_number?.trim()) {
+      throw new Error("رقم تأكيد الفيزا مطلوب وإجباري!");
+    }
+    if (saleData.payment_method === "bank_transfer" && !saleData.reference_number?.trim()) {
+      throw new Error("رقم التحويل البنكي مطلوب وإجباري!");
+    }
+
+    const now = new Date();
+    const txDate = saleData.transaction_date || now.toISOString().split("T")[0];
+    const txTime = saleData.transaction_time || now.toTimeString().slice(0, 5);
+
+    // Sequential & Unique Receipt Numbering Logic: PRK-YYYYMMDD-0001
+    const existingTxs = this.state.parkTicketTransactions || [];
+    const datePrefix = txDate.replace(/-/g, "");
+    let seq = existingTxs.length + 1;
+    let candidateTxNum = `PRK-${datePrefix}-${seq.toString().padStart(4, "0")}`;
+    while (existingTxs.some((t) => t.tx_number === candidateTxNum)) {
+      seq++;
+      candidateTxNum = `PRK-${datePrefix}-${seq.toString().padStart(4, "0")}`;
+    }
+    const txNum = candidateTxNum;
+
+    const opTreasuries = this.getParkOperationalTreasuries();
+    const matchingOpTreasury =
+      opTreasuries.find(
+        (t) => t.payment_method === saleData.payment_method && t.currency === curr,
+      ) || opTreasuries[0];
+
+    matchingOpTreasury.balance = (matchingOpTreasury.balance || 0) + totalPaidInCurrency;
+
+    const itemNotesArray = saleData.items
+      .filter((i) => i.note && i.note.trim())
+      .map((i) => `${i.name_ar} [ملاحظة: ${i.note.trim()}]`);
+    const combinedNotes = itemNotesArray
+      .concat(saleData.notes ? [saleData.notes.trim()] : [])
+      .filter(Boolean)
+      .join(" | ");
+
+    const methodArMap: Record<string, string> = {
+      cash: "نقدي",
+      visa: "فيزا / بطاقة",
+      bank_transfer: "تحويل بنكي",
+      credit: "آجل على الحساب",
+    };
+
+    // Requirement 2: Do NOT create journal entries immediately when sale is completed.
+    // Journal entries are generated automatically only when "End Shift" is executed.
+    const pendingJournalRef = "معلقة - إغلاق الوردية";
+
+    const txRecord: ParkTicketTransaction = {
+      id: "tx-park-" + Date.now(),
+      tx_number: txNum,
+      manual_tx_number:
+        saleData.manual_tx_number?.trim() || saleData.reference_number?.trim() || txNum,
+      shift_id: shift.id,
+      shift_number: shift.shift_number,
+      items: saleData.items,
+      subtotal_usd: subtotalUsd,
+      total_usd: subtotalUsd,
+      currency: curr,
+      exchange_rate: rate, // Exact rate for this specific transaction!
+      total_paid_in_currency: totalPaidInCurrency,
+      payment_method: saleData.payment_method,
+      reference_number: saleData.reference_number || saleData.manual_tx_number || "",
+      customer_id: saleData.customer_id,
+      customer_name: customerName,
+      operational_treasury_id: matchingOpTreasury.id,
+      linked_real_treasury_id: matchingOpTreasury.linked_real_treasury_id,
+      status: "completed",
+      transaction_date: txDate,
+      transaction_time: txTime,
+      system_timestamp: now.toISOString(),
+      journal_entry_ref: pendingJournalRef,
+      created_by: shift.cashier_name || this.state.currentUser || "أمين الصندوق",
+      notes: combinedNotes,
+    };
+
+    this.state.parkTicketTransactions = [txRecord, ...(this.state.parkTicketTransactions || [])];
+
+    const gardenRevRecord: MallGardenRevenue = {
+      id: "rev-park-" + Date.now(),
+      year: parseInt(txDate.split("-")[0], 10),
+      month: parseInt(txDate.split("-")[1], 10),
+      category: "garden_ticket",
+      description: `تذاكر دخول الحديقة - ${txNum} (${methodArMap[saleData.payment_method]}) - Rate (المعامل): ${rate}`,
+      amount: subtotalUsd,
+      date: txDate,
+      receipt_number: txNum,
+      notes: combinedNotes,
+    };
+    this.state.mallGardenRevenues = [gardenRevRecord, ...(this.state.mallGardenRevenues || [])];
+
+    this.saveState();
+    this.logAction(
+      "POS",
+      "اصدار تذاكر حديقة",
+      `تم تسجيل عملية تذاكر (${txNum}) بمبلغ ${totalPaidInCurrency} ${curr} (سيتم توليد القيد عند إغلاق الوردية)`,
+      "CREATE",
+    );
+    return { transaction: txRecord, journalEntry: null };
+  }
+
+  refundParkTicketTransaction(txId: string, refundReason: string) {
+    const tx = (this.state.parkTicketTransactions || []).find(
+      (t) => t.id === txId || t.tx_number === txId,
+    );
+    if (!tx) throw new Error("المعاملة غير موجودة!");
+    if (tx.status === "refunded") throw new Error("المعاملة تمت استعادتها/إرجاعها من قبل!");
+    if (!refundReason || !refundReason.trim()) throw new Error("يجب كتابة سبب الإرجاع!");
+
+    const opTreasuries = this.getParkOperationalTreasuries();
+    const opTreasury = opTreasuries.find((t) => t.id === tx.operational_treasury_id);
+    if (opTreasury) {
+      opTreasury.balance = (opTreasury.balance || 0) - tx.total_paid_in_currency;
+    }
+
+    const now = new Date();
+    const refundTxNum = `TX-PARK-REFUND-${Date.now().toString().slice(-6)}`;
+
+    tx.status = "refunded";
+    tx.refund_reason = refundReason;
+    tx.refund_tx_id = refundTxNum;
+    tx.refund_journal_ref = "معلقة - إغلاق الوردية";
+    tx.refund_at = now.toISOString();
+
+    this.saveState();
+    this.logAction(
+      "POS",
+      "إرجاع تذاكر حديقة",
+      `تم إرجاع المعاملة (${tx.tx_number}) بسبب: ${refundReason} (سيتم توليد قيد الإرجاع عند إغلاق الوردية)`,
+      "DELETE",
+    );
+    return { transaction: tx, refundJournalEntry: null };
+  }
+
+  updateParkTicketTransactionDateTime(txId: string, newDate: string, newTime: string) {
+    const txs = this.state.parkTicketTransactions || [];
+    const tx = txs.find((t) => t.id === txId || t.tx_number === txId);
+    if (!tx) throw new Error("المعاملة غير موجودة!");
+
+    // Preserve tx_number and system_timestamp (immutable audit fields)
+    tx.transaction_date = newDate;
+    tx.transaction_time = newTime;
+
+    // Synchronize linked journal entry date
+    const je = (this.state.journalEntries || []).find(
+      (j) => j.reference === tx.journal_entry_ref || j.id === tx.journal_entry_ref,
+    );
+    if (je) {
+      je.entry_date = newDate;
+    }
+
+    // Synchronize linked garden revenue date
+    const rev = (this.state.mallGardenRevenues || []).find(
+      (r) => r.receipt_number === tx.tx_number,
+    );
+    if (rev) {
+      rev.date = newDate;
+      const parts = newDate.split("-");
+      if (parts.length >= 2) {
+        rev.year = parseInt(parts[0], 10);
+        rev.month = parseInt(parts[1], 10);
+      }
+    }
+
+    this.saveState();
+    this.logAction(
+      "POS",
+      "تعديل تاريخ المعاملة",
+      `تم تعديل تاريخ المعاملة (${tx.tx_number}) إلى ${newDate} ${newTime}`,
+      "UPDATE",
+    );
+    return tx;
+  }
+
+  closeParkShift(shiftId?: string) {
+    let targetShift: any = null;
+    if (shiftId) {
+      targetShift = (this.state.parkShifts || []).find(
+        (s) => s.id === shiftId || s.shift_number === shiftId || s.auto_shift_number === shiftId,
+      );
+    }
+    if (!targetShift) {
+      targetShift = this.state.parkActiveShift;
+    }
+    if (!targetShift || targetShift.status !== "open") {
+      targetShift = (this.state.parkShifts || []).find((s) => s.status === "open");
+    }
+    if (!targetShift) {
+      throw new Error("لا توجد وردية مفتوحة لإغلاقها!");
+    }
+    const activeShift = targetShift;
+
+    const now = new Date();
+    const opTreasuries = this.getParkOperationalTreasuries();
+    const destinationTransfers: Array<{
+      op_treasury_id: string;
+      op_treasury_name: string;
+      real_treasury_id: string;
+      real_treasury_name: string;
+      currency: "USD" | "SSP";
+      amount: number;
+      journal_ref?: string;
+    }> = [];
+
+    const generatedJournalRefs: string[] = [];
+    const opBalancesAtClose: Record<string, number> = {};
+
+    const methodArMap: Record<string, string> = {
+      cash: "نقدي",
+      visa: "فيزا / بطاقة",
+      bank_transfer: "تحويل بنكي",
+      credit: "آجل على الحساب",
+    };
+
+    // Requirement 3: Generate all Park Tickets journal entries automatically ONLY when "End Shift" is executed.
+    const shiftTransactions = (this.state.parkTicketTransactions || []).filter(
+      (t) =>
+        t.shift_id === activeShift.id ||
+        !t.journal_entry_ref ||
+        t.journal_entry_ref.includes("معلقة"),
+    );
+
+    shiftTransactions.forEach((tx) => {
+      // Avoid duplicate journal entry creation if already posted
+      if (tx.journal_entry_ref && !tx.journal_entry_ref.includes("معلقة")) {
+        return;
+      }
+
+      let debitAccountCode = "101000";
+      if (tx.payment_method === "visa") debitAccountCode = "102000";
+      else if (tx.payment_method === "bank_transfer") debitAccountCode = "103000";
+      else if (tx.payment_method === "credit") debitAccountCode = "120100";
+
+      const opTr = opTreasuries.find((o) => o.id === tx.operational_treasury_id);
+      const realTr =
+        (this.state.treasuries || []).find(
+          (t) => t.id === (opTr?.linked_real_treasury_id || tx.linked_real_treasury_id),
+        ) || this.state.treasuries[0];
+
+      const opTrName = opTr ? opTr.name_ar : "خزينة تشغيلية مؤقتة";
+      const realTrName = realTr ? realTr.name_ar : "الخزينة الرئيسية";
+
+      const itemNotesArray = (tx.items || [])
+        .filter((i) => i.note && i.note.trim())
+        .map((i) => `${i.name_ar} [ملاحظة: ${i.note.trim()}]`);
+      const fullNotes = itemNotesArray
+        .concat(tx.notes ? [tx.notes] : [])
+        .filter(Boolean)
+        .join(" | ");
+
+      // Requirement 1 & 6 & 7: Record exact rate used for this specific transaction, item notes, operational treasury, linked real treasury, shift number, receipt number
+      const entryDesc = `قيد مبيعات تذاكر الحديقة - فاتورة/إيصال (${tx.tx_number}) - وردية (${activeShift.shift_number}) - طريقة الدفع: ${methodArMap[tx.payment_method] || tx.payment_method} - العملة: ${tx.currency} - Rate (المعامل): ${tx.exchange_rate} - الخزينة التشغيلية: (${opTrName}) - الخزينة الرئيسية المرتبطة: (${realTrName})${fullNotes ? ` - ملاحظات: ${fullNotes}` : ""}`;
+
+      const saleJE = this.addJournalEntry(
+        entryDesc,
+        [
+          {
+            account_code: debitAccountCode,
+            debit: tx.total_paid_in_currency,
+            credit: 0,
+            currency: tx.currency,
+            rate: tx.exchange_rate, // Exact rate for this specific transaction!
+            description: `دفع قيمة التذاكر (${methodArMap[tx.payment_method] || tx.payment_method}) - إيصال ${tx.tx_number} - Rate (المعامل): ${tx.exchange_rate}${fullNotes ? ` [${fullNotes}]` : ""}`,
+          },
+          {
+            account_code: "401000",
+            debit: 0,
+            credit: tx.total_paid_in_currency,
+            currency: tx.currency,
+            rate: tx.exchange_rate, // Exact rate for this specific transaction!
+            description: `إيرادات تذاكر الحديقة - إيصال ${tx.tx_number} - Rate (المعامل): ${tx.exchange_rate}${fullNotes ? ` [${fullNotes}]` : ""}`,
+          },
+        ],
+        undefined,
+        tx.currency,
+        tx.transaction_date || now.toISOString().split("T")[0],
+      );
+
+      const saleRef = saleJE.reference || saleJE.id;
+      tx.journal_entry_ref = saleRef;
+      generatedJournalRefs.push(saleRef);
+
+      // Handle refund accounting entry if transaction was refunded during this shift
+      if (
+        tx.status === "refunded" &&
+        (!tx.refund_journal_ref || tx.refund_journal_ref.includes("معلقة"))
+      ) {
+        const refundDesc = `قيد إرجاع/استرداد تذاكر الحديقة - للمعاملة الأصلية (${tx.tx_number}) - وردية (${activeShift.shift_number}) - سبب الإرجاع: (${tx.refund_reason || "إلغاء وتجميع"}) - طريقة الدفع: ${methodArMap[tx.payment_method] || tx.payment_method} - العملة: ${tx.currency} - Rate (المعامل): ${tx.exchange_rate}`;
+        const refundJE = this.addJournalEntry(
+          refundDesc,
+          [
+            {
+              account_code: "401000",
+              debit: tx.total_paid_in_currency,
+              credit: 0,
+              currency: tx.currency,
+              rate: tx.exchange_rate,
+              description: `إرجاع إيراد تذاكر - إيصال ${tx.tx_number} - Rate (المعامل): ${tx.exchange_rate}`,
+            },
+            {
+              account_code: debitAccountCode,
+              debit: 0,
+              credit: tx.total_paid_in_currency,
+              currency: tx.currency,
+              rate: tx.exchange_rate,
+              description: `استرداد للمشتري (${methodArMap[tx.payment_method] || tx.payment_method}) - إيصال ${tx.tx_number} - Rate (المعامل): ${tx.exchange_rate}`,
+            },
+          ],
+          undefined,
+          tx.currency,
+          tx.transaction_date || now.toISOString().split("T")[0],
+        );
+
+        const refundRef = refundJE.reference || refundJE.id;
+        tx.refund_journal_ref = refundRef;
+        generatedJournalRefs.push(refundRef);
+      }
+    });
+
+    // Requirement 4 & 5: Transfer balances from operational treasuries to linked real treasuries & create transfer entries
+    opTreasuries.forEach((opTr) => {
+      const amt = opTr.balance || 0;
+      opBalancesAtClose[opTr.id] = amt;
+
+      if (amt > 0) {
+        const realTr =
+          (this.state.treasuries || []).find((t) => t.id === opTr.linked_real_treasury_id) ||
+          this.state.treasuries[0];
+        const realTrName = realTr ? realTr.name_ar : "الخزينة الرئيسية";
+        const realAccountCode = realTr ? realTr.account_code || "101000" : "101000";
+
+        let opAccountCode = "101000";
+        if (opTr.payment_method === "visa") opAccountCode = "102000";
+        else if (opTr.payment_method === "bank_transfer") opAccountCode = "103000";
+        else if (opTr.payment_method === "credit") opAccountCode = "120100";
+
+        const rate = opTr.currency === "SSP" ? this.getExchangeRate("SSP") : 1;
+        const transferDesc = `ترحيل إغلاق وردية تذاكر الحديقة (${activeShift.shift_number}) - من الخزينة التشغيلية المؤقتة (${opTr.name_ar}) إلى الخزينة الرئيسية المرتبطة (${realTrName}) - المبلغ: ${amt} ${opTr.currency} - Rate (المعامل): ${rate}`;
+
+        const transferJE = this.addJournalEntry(
+          transferDesc,
+          [
+            {
+              account_code: realAccountCode,
+              debit: amt,
+              credit: 0,
+              currency: opTr.currency,
+              rate: rate,
+              description: `إيداع حديقة - وردية ${activeShift.shift_number} - من (${opTr.name_ar}) إلى الخزينة المرتبطة (${realTrName})`,
+            },
+            {
+              account_code: opAccountCode,
+              debit: 0,
+              credit: amt,
+              currency: opTr.currency,
+              rate: rate,
+              description: `إقفال رصيد الخزينة التشغيلية المؤقتة (${opTr.name_ar})`,
+            },
+          ],
+          undefined,
+          opTr.currency,
+          now.toISOString().split("T")[0],
+        );
+
+        const jRef = transferJE.reference || transferJE.id;
+        generatedJournalRefs.push(jRef);
+
+        if (realTr) {
+          realTr.balance = (realTr.balance || 0) + (opTr.currency === "USD" ? amt : amt / rate);
+        }
+
+        destinationTransfers.push({
+          op_treasury_id: opTr.id,
+          op_treasury_name: opTr.name_ar,
+          real_treasury_id: opTr.linked_real_treasury_id,
+          real_treasury_name: realTrName,
+          currency: opTr.currency,
+          amount: amt,
+          journal_ref: jRef,
+        });
+
+        opTr.balance = 0;
+      }
+    });
+
+    activeShift.status = "closed";
+    activeShift.end_at = now.toISOString();
+    activeShift.operational_treasury_balances_at_close = opBalancesAtClose;
+    activeShift.destination_transfers = destinationTransfers;
+    activeShift.generated_journal_refs = generatedJournalRefs;
+
+    this.state.parkActiveShift = null;
+
+    this.saveState();
+    this.notify();
+    this.logAction(
+      "POS",
+      "إغلاق وردية تذاكر",
+      `تم إغلاق الوردية (${activeShift.shift_number}) وتوليد ${generatedJournalRefs.length} قيود محاسبية تلقائية بنجاح`,
+      "UPDATE",
+    );
+    return activeShift;
+  }
+
+  // ==========================================
+  // RESTAURANT SHIFT & REFUND MANAGEMENT
+  // ==========================================
+
+  generateUniqueRestaurantShiftNumber(): string {
+    const todayStr = new Date().toISOString().split("T")[0].replace(/-/g, "");
+    const shifts = this.state.restaurantShifts || [];
+    let count =
+      shifts.filter((s) => s.auto_shift_number?.includes(todayStr) || s.id?.includes(todayStr))
+        .length + 1;
+    let candidate = `RST-${todayStr}-${count.toString().padStart(3, "0")}`;
+    while (shifts.some((s) => s.auto_shift_number === candidate || s.id === candidate)) {
+      count++;
+      candidate = `RST-${todayStr}-${count.toString().padStart(3, "0")}`;
+    }
+    return candidate;
+  }
+
+  getRestaurantShifts(): RestaurantShift[] {
+    return this.state.restaurantShifts || [];
+  }
+
+  getActiveRestaurantShift(): RestaurantShift | null {
+    if (this.state.restaurantActiveShift && this.state.restaurantActiveShift.status === "open") {
+      return this.state.restaurantActiveShift;
+    }
+    return null;
+  }
+
+  setActiveRestaurantShift(shiftId: string): RestaurantShift {
+    const shift = (this.state.restaurantShifts || []).find((s) => s.id === shiftId);
+    if (!shift) throw new Error("وردية المطعم غير موجودة!");
+    this.state.restaurantActiveShift = shift;
+    this.saveState();
+    this.notify();
+    return shift;
+  }
+
+  startNewRestaurantShift(payload: {
+    shift_number?: string;
+    auto_shift_number?: string;
+    cashier_name: string;
+    cashier_id?: string;
+    cashier_type?: "hr" | "manual";
+    opening_balance?: number;
+    opening_notes?: string;
+    notes?: string;
+  }): RestaurantShift {
+    const autoNum = payload.auto_shift_number || this.generateUniqueRestaurantShiftNumber();
+    const finalShiftNum =
+      payload.shift_number && payload.shift_number.trim()
+        ? payload.shift_number.trim()
+        : `وردية مطعم #${(this.state.restaurantShifts?.length || 0) + 1} - ${new Date().toLocaleDateString("ar-EG")}`;
+
+    const newShift: RestaurantShift = {
+      id: "shift-rest-" + Date.now(),
+      auto_shift_number: autoNum,
+      shift_number: finalShiftNum,
+      start_at: new Date().toISOString(),
+      status: "open",
+      cashier_name: payload.cashier_name || "كاشير المطعم",
+      cashier_id: payload.cashier_id,
+      cashier_type: payload.cashier_type || "hr",
+      opening_balance: Number(payload.opening_balance || 0),
+      opening_notes: payload.opening_notes,
+      notes: payload.notes,
+      generated_journal_refs: [],
+      orders_count: 0,
+      total_sales: 0,
+      total_tax: 0,
+      total_discount: 0,
+      total_service_fee: 0,
+      total_delivery_fee: 0,
+      total_refunds: 0,
+      net_total: 0,
+      payment_breakdown: { cash: 0, card: 0, wallet: 0 },
+    };
+
+    this.state.restaurantActiveShift = newShift;
+    this.state.restaurantShifts = [newShift, ...(this.state.restaurantShifts || [])];
+    this.saveState();
+    this.logAction(
+      "POS",
+      "افتتاح وردية مطعم",
+      `تم فتح وردية مطعم جديدة (${finalShiftNum} - رقم تلقائي: ${autoNum}) باسم: ${newShift.cashier_name}`,
+      "CREATE",
+    );
+    this.notify();
+    return newShift;
+  }
+
+  updateRestaurantShift(shiftId: string, updates: Partial<RestaurantShift>): RestaurantShift {
+    const shifts = this.state.restaurantShifts || [];
+    const shift = shifts.find((s) => s.id === shiftId);
+    if (!shift) throw new Error("الوردية غير موجودة!");
+
+    Object.assign(shift, updates);
+
+    if (this.state.restaurantActiveShift && this.state.restaurantActiveShift.id === shiftId) {
+      Object.assign(this.state.restaurantActiveShift, updates);
+    }
+
+    this.saveState();
+    this.logAction(
+      "POS",
+      "تعديل بيانات وردية مطعم",
+      `تم تعديل بيانات الوردية (${shift.shift_number})`,
+      "UPDATE",
+    );
+    this.notify();
+    return shift;
+  }
+
+  deleteRestaurantShift(shiftId: string): boolean {
+    const shifts = this.state.restaurantShifts || [];
+    const shiftIdx = shifts.findIndex((s) => s.id === shiftId);
+    if (shiftIdx === -1) throw new Error("الوردية غير موجودة!");
+    const shift = shifts[shiftIdx];
+
+    shifts.splice(shiftIdx, 1);
+    this.state.restaurantShifts = shifts;
+
+    if (this.state.restaurantActiveShift?.id === shiftId) {
+      this.state.restaurantActiveShift = null;
+    }
+
+    this.saveState();
+    this.logAction(
+      "POS",
+      "حذف وردية مطعم",
+      `تم حذف وردية المطعم (${shift.shift_number}) من النظام`,
+      "DELETE",
+    );
+    this.notify();
+    return true;
+  }
+
+  getOrCreateActiveRestaurantShift(cashierName = "كاشير المطعم"): RestaurantShift {
+    let active = this.state.restaurantActiveShift;
+    if (!active || active.status !== "open") {
+      const autoNum = this.generateUniqueRestaurantShiftNumber();
+      active = {
+        id: "shift-rest-" + Date.now(),
+        auto_shift_number: autoNum,
+        shift_number: `وردية مطعم #${(this.state.restaurantShifts?.length || 0) + 1} - ${new Date().toLocaleDateString("ar-EG")}`,
+        start_at: new Date().toISOString(),
+        status: "open",
+        cashier_name: cashierName,
+        generated_journal_refs: [],
+        orders_count: 0,
+        total_sales: 0,
+        total_tax: 0,
+        total_discount: 0,
+        total_service_fee: 0,
+        total_delivery_fee: 0,
+        total_refunds: 0,
+        net_total: 0,
+        payment_breakdown: { cash: 0, card: 0, wallet: 0 },
+      };
+      this.state.restaurantActiveShift = active;
+      this.state.restaurantShifts = [active, ...(this.state.restaurantShifts || [])];
+      this.saveState();
+      this.notify();
+    }
+    return active;
+  }
+
+  closeRestaurantShift(shiftId?: string, closingNotes?: string): RestaurantShift {
+    const activeShift = shiftId
+      ? (this.state.restaurantShifts || []).find((s) => s.id === shiftId)
+      : this.state.restaurantActiveShift;
+
+    if (!activeShift || activeShift.status !== "open") {
+      throw new Error("لا توجد وردية مطعم مفتوحة لإغلاقها!");
+    }
+
+    const now = new Date();
+    activeShift.status = "closed";
+    activeShift.end_at = now.toISOString();
+    if (closingNotes) activeShift.closing_notes = closingNotes;
+
+    // Compile refunds for this shift
+    const shiftRefunds = (this.state.restaurantRefundRecords || []).filter(
+      (r) => r.shift_id === activeShift.id || r.shift_number === activeShift.shift_number,
+    );
+    const totalRefundAmt = shiftRefunds.reduce((sum, r) => sum + Number(r.refund_amount || 0), 0);
+    activeShift.total_refunds = totalRefundAmt;
+    activeShift.refunds_count = shiftRefunds.length;
+    activeShift.net_total = Math.max(0, Number(activeShift.total_sales || 0) - totalRefundAmt);
+
+    // Requirement 2: Do NOT open a new shift automatically upon closing
+    if (this.state.restaurantActiveShift?.id === activeShift.id) {
+      this.state.restaurantActiveShift = null;
+    }
+
+    this.saveState();
+    this.notify();
+    this.logAction(
+      "POS",
+      "إغلاق وردية مطعم",
+      `تم إغلاق وردية المطعم (${activeShift.shift_number}) وتحديث التقارير المحاسبية`,
+      "UPDATE",
+    );
+    return activeShift;
+  }
+
+  getRestaurantRefundRecords(shiftId?: string): RestaurantRefundRecord[] {
+    const all = this.state.restaurantRefundRecords || [];
+    if (!shiftId) return all;
+    return all.filter((r) => r.shift_id === shiftId);
+  }
+
+  refundRestaurantOrder(payload: {
+    order_number: number;
+    refund_amount: number;
+    refund_reason: string;
+    payment_method?: "cash" | "card" | "wallet";
+    currency?: string;
+    treasury_id?: string;
+    cashier_name?: string;
+    items_summary?: string;
+  }): RestaurantRefundRecord {
+    const currentShift = this.getActiveRestaurantShift() || this.getOrCreateActiveRestaurantShift();
+    const currency = payload.currency || "EGP";
+    const paymentMethod = payload.payment_method || "cash";
+    const refundAmt = Number(payload.refund_amount);
+    const cashierName = payload.cashier_name || currentShift.cashier_name || "كاشير المطعم";
+    const journalRef = `REF-${payload.order_number}`;
+
+    const refundRecord: RestaurantRefundRecord = {
+      id: "ref-" + Date.now(),
+      order_number: payload.order_number,
+      shift_id: currentShift.id,
+      shift_number: currentShift.shift_number,
+      refund_amount: refundAmt,
+      refund_reason: payload.refund_reason || "استرداد قيمة الطلب",
+      created_at: new Date().toISOString(),
+      journal_ref: journalRef,
+      cashier_name: cashierName,
+      payment_method: paymentMethod,
+      currency: currency,
+      items_summary: payload.items_summary,
+    };
+
+    if (!this.state.restaurantRefundRecords) {
+      this.state.restaurantRefundRecords = [];
+    }
+    this.state.restaurantRefundRecords.unshift(refundRecord);
+
+    // Double entry accounting for refund:
+    // Debit: Sales Returns (401000 or 402000)
+    // Credit: Cashier / Bank Treasury Account (101000 or 102000 or 103000)
+    let treasuryAccount = "101000";
+    if (paymentMethod === "card") treasuryAccount = "102000";
+    else if (paymentMethod === "wallet") treasuryAccount = "103000";
+
+    const rate = this.getExchangeRate(currency);
+    const journalLines = [
+      {
+        account_code: "401000", // Sales / Sales Returns
+        debit: refundAmt,
+        credit: 0,
+        currency: currency,
+        rate: rate,
+      },
+      {
+        account_code: treasuryAccount,
+        debit: 0,
+        credit: refundAmt,
+        currency: currency,
+        rate: rate,
+      },
+    ];
+
+    this.addJournalEntry(
+      `قيد مردودات ومسترجعات مبيعات المطعم - طلب #${payload.order_number} - وردية (${currentShift.shift_number}) - سبب الإرجاع: (${payload.refund_reason})`,
+      journalLines,
+      journalRef,
+      currency,
+    );
+
+    if (currentShift.generated_journal_refs) {
+      currentShift.generated_journal_refs.push(journalRef);
+    } else {
+      currentShift.generated_journal_refs = [journalRef];
+    }
+
+    // Deduct from treasury transactions
+    const targetTreasuryId =
+      payload.treasury_id ||
+      this.state.treasuries.find((t) => t.linked_to_restaurant && !t.deleted)?.id ||
+      "tr-1";
+
+    try {
+      this.addTreasuryTransaction(
+        targetTreasuryId,
+        "refund",
+        refundAmt,
+        currency,
+        `مرتجع مبيعات المطعم - طلب رقم #${payload.order_number} - سبب: ${payload.refund_reason}`,
+        journalRef,
+        paymentMethod,
+      );
+    } catch (err) {
+      console.error("Error adding treasury transaction for refund:", err);
+    }
+
+    // Update shift refund totals
+    currentShift.total_refunds = (currentShift.total_refunds || 0) + refundAmt;
+    currentShift.refunds_count = (currentShift.refunds_count || 0) + 1;
+    currentShift.net_total = Math.max(
+      0,
+      (currentShift.total_sales || 0) - currentShift.total_refunds,
+    );
+
+    this.saveState();
+    this.notify();
+    this.logAction(
+      "POS",
+      "تسجيل حركة مرتجع",
+      `تم تسجيل حركة مرتجع بقيمة ${refundAmt} ${currency} للطلب #${payload.order_number} وردية (${currentShift.shift_number})`,
+      "CREATE",
+    );
+
+    return refundRecord;
   }
 }
 export const erpStore = new ERPStore();

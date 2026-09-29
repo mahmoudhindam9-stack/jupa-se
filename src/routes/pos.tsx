@@ -1044,7 +1044,7 @@ function Index() {
                     <span>{lang === "ar" ? "تصفير المبيعات" : "Reset Sales"}</span>
                   </button>
                 </AlertDialogTrigger>
-                <AlertDialogContent dir="rtl">
+                <AlertDialogContent>
                   <AlertDialogHeader>
                     <AlertDialogTitle className="text-right">
                       {lang === "ar" ? "تأكيد تصفير المبيعات والطلبات" : "Confirm Sales Reset"}

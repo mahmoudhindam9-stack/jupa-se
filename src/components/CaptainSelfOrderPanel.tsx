@@ -62,7 +62,7 @@ export function CaptainSelfOrderPanel() {
   };
 
   return (
-    <section className="max-w-7xl mx-auto w-full px-4 mt-4" dir="rtl">
+    <section className="max-w-7xl mx-auto w-full px-4 mt-4">
       <div className="rounded-3xl border border-indigo-200 bg-indigo-50/70 p-5 shadow-sm">
         <div className="flex items-center justify-between gap-3 mb-4">
           <div>

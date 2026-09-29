@@ -1,15 +1,26 @@
 // Thermal Printer Service (Web Serial & ESC/POS + Fallback to Browser Print Preview)
+import { getReceiptDesignSettings } from "./receiptSettings";
+import { printRawHtml } from "@/shared/utils/printAccountingDocument";
 
 export interface PrintableReceiptData {
   storeName?: string;
   storeSubtitle?: string;
   taxNumber?: string;
   commercialRegister?: string;
+  logoUrl?: string;
+  branchName?: string;
+  address?: string;
+  phone?: string;
   orderNumber?: string | number;
   orderType?: string;
   paymentMethod?: string;
+  referenceNumber?: string;
   customerName?: string;
+  cashierName?: string;
   date?: string;
+  time?: string;
+  systemTimestamp?: string;
+  journalEntryRef?: string;
   items: Array<{
     name: string;
     quantity: number;
@@ -22,10 +33,12 @@ export interface PrintableReceiptData {
   discount?: number;
   serviceFee?: number;
   deliveryFee?: number;
-  tax: number;
+  tax?: number;
   taxRate?: number;
   total: number;
+  totalPaidInCurrency?: number;
   currency?: string;
+  exchangeRate?: number;
   thankYouMessage?: string;
   footerNotes?: string;
   wifiInfo?: string;
@@ -115,27 +128,26 @@ class ThermalPrinterService {
     data?: PrintableReceiptData,
   ): Promise<{ method: "direct" | "browser"; success: boolean }> {
     if (this.isConnected && this.port) {
+      console.log("PrinterService: Attempting direct print...");
       try {
         const success = await this.sendEscPosToPrinter(data);
+        console.log("PrinterService: Direct print success:", success);
         if (success) {
           return { method: "direct", success: true };
         }
       } catch (err) {
-        console.warn("Direct thermal print error, falling back to browser print preview:", err);
+        console.error("PrinterService: Direct thermal print error:", err);
         this.isConnected = false;
         this.notifyStatus();
       }
     }
-
+    console.log("PrinterService: Falling back to browser print...");
     // Fallback: Open Browser Print Preview directly
     if (typeof window !== "undefined") {
-      try {
+      if (data) {
+        this.printHtmlWindow(data);
+      } else {
         window.print();
-      } catch (err) {
-        console.warn("window.print failed or blocked in iframe, opening popup print window:", err);
-        if (data) {
-          this.printHtmlWindow(data);
-        }
       }
       return { method: "browser", success: true };
     }
@@ -149,33 +161,43 @@ class ThermalPrinterService {
   public printHtmlWindow(data: PrintableReceiptData) {
     if (typeof window === "undefined") return;
 
-    const printWindow = window.open(
-      "",
-      "_blank",
-      "width=420,height=650,scrollbars=yes,resizable=yes",
-    );
-    if (!printWindow) {
-      window.print();
-      return;
-    }
+    const settings = getReceiptDesignSettings();
+    const storeName = data.storeName || settings.storeName;
+    const storeSubtitle = data.storeSubtitle || settings.storeSubtitle;
+    const taxNumber = settings.showTaxNumber ? data.taxNumber || settings.taxNumber : "";
+    const commercialRegister = settings.showCommercialRegister
+      ? data.commercialRegister || settings.commercialRegister
+      : "";
+    const logoUrl = settings.showLogo ? data.logoUrl || settings.logoUrl : "";
+    const accentColor = settings.accentColor || "#10b981";
+    const thankYouMessage = settings.showThankYouMsg
+      ? data.thankYouMessage || settings.thankYouMessage
+      : "";
+    const footerNotes = settings.showFooterNotes
+      ? data.footerNotes || settings.footerNotesText
+      : "";
+    const wifiInfo = settings.showWifiPass ? data.wifiInfo || settings.wifiPasswordText : "";
+    const showNotes = settings.showItemNotes;
+
+    // Using printRawHtml for robust iframe fallback
 
     const itemsRows = (data.items || [])
       .map(
         (it) => `
       <tr>
-        <td style="text-align: right; padding: 4px 0; border-bottom: 1px dashed #eee;">
-          <div>${it.name}</div>
+        <td style="text-align: right; padding: 5px 0; border-bottom: 1px dashed #e2e8f0;">
+          <div style="font-weight: bold; color: #1e293b;">${it.name}</div>
           ${
-            it.notes || it.note
-              ? `<div style="font-size: 10px; color: #444; margin-top: 1px; font-weight: bold;">* ملاحظة: ${
+            showNotes && (it.notes || it.note)
+              ? `<div style="font-size: 10px; color: #64748b; margin-top: 2px;">• ${
                   it.notes || it.note
                 }</div>`
               : ""
           }
         </td>
-        <td style="text-align: center; padding: 4px 0; border-bottom: 1px dashed #eee;">x${it.quantity}</td>
-        <td style="text-align: left; padding: 4px 0; border-bottom: 1px dashed #eee; font-weight: bold;">
-          ${(it.price * it.quantity).toFixed(2)} ${data.currency || "ج.م"}
+        <td style="text-align: center; padding: 5px 0; border-bottom: 1px dashed #e2e8f0; font-weight: bold;">x${it.quantity}</td>
+        <td style="text-align: left; padding: 5px 0; border-bottom: 1px dashed #e2e8f0; font-weight: 900; color: #0f172a;">
+          ${(it.price * it.quantity).toFixed(2)} ${data.currency || "USD"}
         </td>
       </tr>
     `,
@@ -184,48 +206,51 @@ class ThermalPrinterService {
 
     const html = `
       <!DOCTYPE html>
-      <html dir="rtl" lang="ar">
+      <html lang="ar">
       <head>
         <meta charset="utf-8">
-        <title>طباعة الإيصال - #${data.orderNumber || ""}</title>
+        <title>إيصال تذاكر / مبيعات - #${data.orderNumber || ""}</title>
         <style>
-          @page { size: 80mm auto; margin: 0; }
+          @page { size: ${settings.receiptPaperWidth === "58mm" ? "58mm" : "80mm"} auto; margin: 0; }
           body {
-            font-family: 'Courier New', Courier, monospace, system-ui, sans-serif;
-            width: 76mm;
+            font-family: '${settings.fontFamily || "Tajawal"}', sans-serif, system-ui;
+            width: ${settings.receiptPaperWidth === "58mm" ? "54mm" : "76mm"};
             margin: 0 auto;
             padding: 12px;
-            color: #000;
+            color: #0f172a;
             background: #fff;
-            font-size: 12px;
+            font-size: 11px;
             line-height: 1.4;
           }
           .text-center { text-align: center; }
           .text-right { text-align: right; }
           .text-left { text-align: left; }
           .bold { font-weight: bold; }
-          .divider { border-top: 1px dashed #000; margin: 8px 0; }
+          .divider { border-top: 1px dashed #94a3b8; margin: 8px 0; }
           table { width: 100%; border-collapse: collapse; font-size: 11px; }
           .total-box {
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 900;
-            border: 2px solid #000;
+            border: 2px solid ${accentColor};
+            color: ${accentColor};
             padding: 8px;
             margin-top: 8px;
             text-align: center;
-            border-radius: 6px;
+            border-radius: 8px;
+            background: #f8fafc;
           }
           .print-btn {
-            background: #10b981;
+            background: ${accentColor};
             color: white;
             border: none;
             padding: 10px 20px;
             font-weight: bold;
-            border-radius: 8px;
+            border-radius: 10px;
             cursor: pointer;
             width: 100%;
             margin-bottom: 12px;
             font-size: 14px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
           }
           @media print {
             .no-print { display: none !important; }
@@ -239,25 +264,39 @@ class ThermalPrinterService {
         </div>
 
         <div class="text-center">
-          <h2 style="margin: 0 0 4px 0; font-size: 18px;">${data.storeName || "مطعم ومقهى ريستوكاش"}</h2>
-          <div style="font-size: 11px;">${data.storeSubtitle || "إيصال مبيعات"}</div>
-          ${data.taxNumber ? `<div style="font-size: 10px;">الرقم الضريبي: ${data.taxNumber}</div>` : ""}
+          ${logoUrl ? `<img src="${logoUrl}" alt="Logo" style="max-height: 55px; margin-bottom: 6px; object-fit: contain;" />` : ""}
+          <h2 style="margin: 0 0 4px 0; font-size: 17px; font-weight: 900; color: ${accentColor};">${storeName}</h2>
+          ${storeSubtitle ? `<div style="font-size: 11px; color: #475569; font-weight: 600;">${storeSubtitle}</div>` : ""}
+          ${settings.showBranchName && settings.branchName ? `<div style="font-size: 10px; color: #64748b;">${settings.branchName}</div>` : ""}
+          ${taxNumber ? `<div style="font-size: 10px; color: #64748b;">الرقم الضريبي: ${taxNumber}</div>` : ""}
+          ${commercialRegister ? `<div style="font-size: 10px; color: #64748b;">سجل تجاري: ${commercialRegister}</div>` : ""}
         </div>
         
         <div class="divider"></div>
         
-        ${data.orderNumber ? `<div class="bold text-center" style="font-size: 16px;">رقم الطلب: #${data.orderNumber}</div>` : ""}
-        ${data.date ? `<div style="font-size: 11px;">التاريخ: ${data.date}</div>` : ""}
-        ${data.orderType ? `<div style="font-size: 11px;">نوع الطلب: ${data.orderType}</div>` : ""}
-        ${data.paymentMethod ? `<div style="font-size: 11px;">طريقة الدفع: ${data.paymentMethod}</div>` : ""}
+        ${data.orderNumber ? `<div class="bold text-center" style="font-size: 15px; font-family: monospace; color: #0f172a;">رقم الإيصال: ${data.orderNumber}</div>` : ""}
+        ${data.journalEntryRef ? `<div style="font-size: 10px; color: #475569;" class="text-center">رقم القيد: ${data.journalEntryRef}</div>` : ""}
+        
+        <div style="margin-top: 6px; font-size: 10px; color: #334155;" class="space-y-1">
+          ${data.orderType ? `<div><strong>النوع / الفئة:</strong> ${data.orderType}</div>` : ""}
+          ${settings.showPaymentMethod && data.paymentMethod ? `<div><strong>طريقة الدفع:</strong> ${data.paymentMethod}</div>` : ""}
+          ${data.referenceNumber ? `<div><strong>رقم التأكيد/المرجع:</strong> ${data.referenceNumber}</div>` : ""}
+          ${settings.showCustomerDetails && data.customerName ? `<div><strong>العميل:</strong> ${data.customerName}</div>` : ""}
+          ${settings.showCashierName && data.cashierName ? `<div><strong>أمين الصندوق:</strong> ${data.cashierName}</div>` : ""}
+          
+          <div style="margin-top: 4px; border-top: 1px dotted #cbd5e1; padding-top: 4px;">
+            ${data.date ? `<div><strong>تاريخ وحين المعاملة:</strong> ${data.date} ${data.time || ""}</div>` : ""}
+            ${data.systemTimestamp ? `<div style="color: #64748b;"><strong>تاريخ التسجيل بالنظام:</strong> ${new Date(data.systemTimestamp).toLocaleString("ar-EG")}</div>` : ""}
+          </div>
+        </div>
         
         <div class="divider"></div>
         
         <table>
           <thead>
-            <tr style="border-bottom: 1px solid #000;">
-              <th class="text-right">الصنف</th>
-              <th class="text-center">الكمية</th>
+            <tr style="border-bottom: 1.5px solid #0f172a; font-weight: 900;">
+              <th class="text-right">التذكرة / الصنف</th>
+              <th class="text-center">العدد</th>
               <th class="text-left">السعر</th>
             </tr>
           </thead>
@@ -268,36 +307,16 @@ class ThermalPrinterService {
         
         <div class="divider"></div>
         
-        <div style="display: flex; justify-content: space-between;">
+        <div style="display: flex; justify-content: space-between; font-weight: 600;">
           <span>المجموع الفرعي:</span>
-          <span>${data.subtotal.toFixed(2)} ${data.currency || "ج.م"}</span>
+          <span>${data.subtotal.toFixed(2)} ${data.currency || "USD"}</span>
         </div>
         ${
           data.discount && data.discount > 0
             ? `
-          <div style="display: flex; justify-content: space-between; font-weight: bold;">
+          <div style="display: flex; justify-content: space-between; font-weight: bold; color: #e11d48;">
             <span>الخصم:</span>
-            <span>-${data.discount.toFixed(2)} ${data.currency || "ج.م"}</span>
-          </div>
-        `
-            : ""
-        }
-        ${
-          data.serviceFee && data.serviceFee > 0
-            ? `
-          <div style="display: flex; justify-content: space-between;">
-            <span>خدمة الصالة:</span>
-            <span>+${data.serviceFee.toFixed(2)} ${data.currency || "ج.م"}</span>
-          </div>
-        `
-            : ""
-        }
-        ${
-          data.deliveryFee && data.deliveryFee > 0
-            ? `
-          <div style="display: flex; justify-content: space-between;">
-            <span>رسوم التوصيل:</span>
-            <span>+${data.deliveryFee.toFixed(2)} ${data.currency || "ج.م"}</span>
+            <span>-${data.discount.toFixed(2)} ${data.currency || "USD"}</span>
           </div>
         `
             : ""
@@ -307,36 +326,71 @@ class ThermalPrinterService {
             ? `
           <div style="display: flex; justify-content: space-between;">
             <span>الضريبة${data.taxRate ? ` (${data.taxRate}%)` : ""}:</span>
-            <span>${data.tax.toFixed(2)} ${data.currency || "ج.م"}</span>
+            <span>${data.tax.toFixed(2)} ${data.currency || "USD"}</span>
           </div>
         `
             : ""
         }
         
         <div class="total-box">
-          الإجمالي: ${data.total.toFixed(2)} ${data.currency || "ج.م"}
+          الإجمالي: ${data.total.toFixed(2)} ${data.currency || "USD"}
+          ${data.totalPaidInCurrency && data.currency === "SSP" ? `<div style="font-size: 11px; margin-top: 2px; font-weight: normal; color: #334155;">(${data.totalPaidInCurrency.toLocaleString()} SSP - بسعر ${data.exchangeRate || 1})</div>` : ""}
         </div>
         
         <div class="divider"></div>
         
         <div class="text-center" style="margin-top: 10px;">
-          ${data.thankYouMessage ? `<div class="bold">${data.thankYouMessage}</div>` : ""}
-          ${data.footerNotes ? `<div style="font-size: 10px; margin-top: 4px;">${data.footerNotes}</div>` : ""}
+          ${thankYouMessage ? `<div class="bold" style="color: ${accentColor};">${thankYouMessage}</div>` : ""}
+          ${footerNotes ? `<div style="font-size: 10px; margin-top: 4px; color: #475569;">${footerNotes}</div>` : ""}
+          ${wifiInfo ? `<div style="font-size: 10px; margin-top: 2px; color: #64748b; font-weight: 600;">WiFi: ${wifiInfo}</div>` : ""}
         </div>
         
         <script>
           setTimeout(function() {
             window.focus();
             window.print();
-          }, 300);
+          }, 350);
         </script>
       </body>
       </html>
     `;
 
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
+    const printWindow = window.open("", "_blank", "width=320,height=600,left=100,top=100");
+    if (printWindow) {
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+        setTimeout(() => printWindow.close(), 500);
+      }, 250);
+    } else {
+      // Fallback for popups blocked: inject a specialized thermal iframe
+      let iframe = document.getElementById("thermal-print-iframe") as HTMLIFrameElement;
+      if (!iframe) {
+        iframe = document.createElement("iframe");
+        iframe.id = "thermal-print-iframe";
+        iframe.style.position = "fixed";
+        iframe.style.right = "0";
+        iframe.style.bottom = "0";
+        iframe.style.width = "80mm";
+        iframe.style.height = "100vh";
+        iframe.style.zIndex = "-9999";
+        iframe.style.opacity = "0";
+        iframe.style.border = "0";
+        document.body.appendChild(iframe);
+      }
+      const doc = iframe.contentWindow?.document || iframe.contentDocument;
+      if (doc) {
+        doc.open();
+        doc.write(html);
+        doc.close();
+        setTimeout(() => {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        }, 500);
+      }
+    }
   }
 
   /**

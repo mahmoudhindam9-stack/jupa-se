@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { inventoryService } from "@/features/inventory/services/inventoryService";
 import { printAccountingDocument } from "@/shared/utils/printAccountingDocument";
 import { Order } from "@/shared/types";
+import { menuService } from "@/features/menu/services/menuService";
 import {
   Coins,
   ArrowUpRight,
@@ -97,7 +98,7 @@ function CashierTreasuryPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [orderSearchTerm, setOrderSearchTerm] = useState("");
   const [isMounted, setIsMounted] = useState(false);
-  const [activeTab, setActiveTab] = useState<"logs" | "orders">("logs");
+  const [activeTab, setActiveTab] = useState<"logs" | "orders">("orders");
   const [confirmRefundId, setConfirmRefundId] = useState<string | null>(null);
   const [refundOrderDialog, setRefundOrderDialog] = useState<Order | null>(null);
   const [refundReason, setRefundReason] = useState<string>("طلب العميل إلغاء الوجبة");
@@ -331,6 +332,18 @@ function CashierTreasuryPage() {
     enabled: isMounted,
   });
 
+  const menuCategoriesQuery = useQuery({
+    queryKey: ["menu_categories"],
+    queryFn: () => menuService.getCategories(),
+    enabled: isMounted,
+  });
+
+  const menuItemsQuery = useQuery({
+    queryKey: ["menu_items"],
+    queryFn: () => menuService.getMenuItems(),
+    enabled: isMounted,
+  });
+
   useEffect(() => {
     if (!isMounted) return;
     const channel = supabase
@@ -339,8 +352,17 @@ function CashierTreasuryPage() {
         queryClient.invalidateQueries({ queryKey: ["cashier-treasury", "orders"] });
       })
       .subscribe();
+
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === "pos_local_orders" || e.key === "restocash_erp_state") {
+        queryClient.invalidateQueries({ queryKey: ["cashier-treasury", "orders"] });
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+
     return () => {
       supabase.removeChannel(channel);
+      window.removeEventListener("storage", handleStorage);
     };
   }, [isMounted, queryClient]);
 
@@ -350,8 +372,15 @@ function CashierTreasuryPage() {
   const handleSyncSales = async (showToastIfSynced = true) => {
     setIsSyncing(true);
     try {
-      const orders = ordersQuery.data || getLocalOrders();
+      await queryClient.invalidateQueries({ queryKey: ["cashier-treasury", "orders"] });
+
+      const orders =
+        (queryClient.getQueryData(["cashier-treasury", "orders"]) as Order[]) || getLocalOrders();
       const res = erpStore.syncOperationalSalesWithTreasury(orders, cashierTreasuryId);
+
+      // Update UI state with new store values directly
+      setErpState(erpStore.getState());
+
       if (res.syncedCount > 0) {
         toast({
           title: lang === "ar" ? "⚡ تمت المزامنة بنجاح" : "⚡ Sales Synced Successfully",
@@ -707,38 +736,140 @@ function CashierTreasuryPage() {
       }));
   };
 
+  const [showReportPreview, setShowReportPreview] = useState(false);
+  const [reportData, setReportData] = useState<any>(null);
+
+  const getCategorizedSales = (orders: any[]) => {
+    const categorized: Record<string, { total: number; qty: number }> = {};
+    const menuItems = menuItemsQuery.data || [];
+    const menuCategories = menuCategoriesQuery.data || [];
+
+    const extendedInventoryData = erpStore.getState().extendedInventoryData || {};
+    orders.forEach((order) => {
+      let items = order.items;
+      if (typeof items === "string") {
+        try {
+          items = JSON.parse(items);
+        } catch (e) {
+          items = [];
+        }
+      }
+      if (!Array.isArray(items)) items = [];
+      items.forEach((item: any) => {
+        let categoryName = "غير مصنف";
+        const menuItem = menuItems.find((m: any) => m.id === (item.menu_item_id || item.id));
+
+        let foundInvCategory = null;
+        if (menuItem) {
+          if (menuItem.inventory_tracking && menuItem.inventory_tracking !== "not_tracked") {
+            const ext = extendedInventoryData[menuItem.inventory_tracking];
+            if (ext && ext.category) foundInvCategory = ext.category;
+          } else if (menuItem.ingredients && menuItem.ingredients.length > 0) {
+            const ext = extendedInventoryData[menuItem.ingredients[0].inventory_id];
+            if (ext && ext.category) foundInvCategory = ext.category;
+          }
+        }
+
+        if (foundInvCategory) {
+          categoryName = foundInvCategory;
+        } else if (menuItem && menuItem.category_id) {
+          const category = menuCategories.find((c: any) => c.id === menuItem.category_id);
+          if (category) categoryName = category.name_ar || category.name_en || categoryName;
+        } else if (item.category) {
+          categoryName = item.category;
+        }
+
+        if (!categorized[categoryName]) categorized[categoryName] = { total: 0, qty: 0 };
+        categorized[categoryName].total += (item.price || 0) * (item.quantity || 0);
+        categorized[categoryName].qty += item.quantity || 0;
+      });
+    });
+    return categorized;
+  };
+
   const printCashierReport = (mode: "shift" | "range") => {
     const today = new Date().toISOString().slice(0, 10);
     const from = mode === "shift" ? today : startDate;
     const to = mode === "shift" ? today : endDate;
-    const rows = getCashierReportRows(from, to);
-    printAccountingDocument({
-      title: mode === "shift" ? "تقرير شيفت خزينة الكاشير" : "تقرير حركات خزينة الكاشير",
-      subtitle: `${from || "بداية مفتوحة"} → ${to || "نهاية مفتوحة"} | ${cashierTreasury.name_ar} | الحساب 13010130`,
-      documentNo: `CASHIER-${today.replaceAll("-", "")}`,
+
+    // Filter orders for the period
+    const allOrders = ordersQuery.data || [];
+    const filteredOrders = allOrders.filter((order: any) => {
+      const date = new Date(order.created_at);
+      if (from && date < new Date(`${from}T00:00:00`)) return false;
+      if (to && date > new Date(`${to}T23:59:59`)) return false;
+      if (order.status === "cancelled") return false;
+      return true;
+    });
+
+    const rows = filteredOrders.map((order: any) => ({
+      number: order.order_number,
+      date: new Date(order.created_at).toLocaleString("ar-EG"),
+      type:
+        order.order_type === "dine_in"
+          ? "صالة"
+          : order.order_type === "takeaway"
+            ? "تيك أواي"
+            : order.order_type === "delivery"
+              ? "دليفري"
+              : "أخرى",
+      method:
+        order.payment_method === "cash"
+          ? "نقدي"
+          : order.payment_method === "card"
+            ? "بطاقة"
+            : order.payment_method,
+      currency: getOrderCurrency(order, erpState.treasuryTransactions),
+      amount: Number(order.total || 0).toLocaleString("en-US"),
+      notes: order.notes || "-",
+    }));
+
+    const categorizedSales = getCategorizedSales(filteredOrders);
+
+    const totalSalesAmount = filteredOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+
+    setReportData({
+      title: mode === "shift" ? "تقرير مبيعات المطعم (شيفت)" : "تقرير مبيعات المطعم (فترة)",
+      subtitle: `${from || "بداية مفتوحة"} → ${to || "نهاية مفتوحة"}`,
+      documentNo: `SALES-${today.replaceAll("-", "")}`,
       columns: [
-        { key: "number", label: "رقم الحركة" },
+        { key: "number", label: "رقم الطلب", align: "center" },
         { key: "date", label: "التاريخ والوقت" },
-        { key: "type", label: "نوع الحركة" },
-        { key: "method", label: "طريقة الدفع" },
+        { key: "type", label: "نوع الطلب", align: "center" },
+        { key: "method", label: "طريقة الدفع", align: "center" },
         { key: "currency", label: "العملة", align: "center" },
-        { key: "amount", label: "المبلغ", align: "left" },
-        { key: "note", label: "البيان" },
-        { key: "reference", label: "المرجع" },
+        { key: "amount", label: "الإجمالي", align: "left" },
+        { key: "notes", label: "ملاحظات" },
       ],
       rows,
       totals: [
-        { label: "عدد الحركات", value: String(rows.length) },
+        { label: "عدد الطلبات", value: String(rows.length) },
         {
-          label: "إجمالي مبيعات الشيفت",
-          value: Number(shiftSalesAmount || 0).toLocaleString("en-US"),
-        },
-        {
-          label: "رصيد الخزينة الحالي",
-          value: Number(cashierTreasury.balance || 0).toLocaleString("en-US"),
+          label: "إجمالي المبيعات",
+          value: totalSalesAmount.toLocaleString("en-US"),
         },
       ],
+      categorizedSales,
     });
+    setShowReportPreview(true);
+  };
+
+  const handleConfirmPrint = () => {
+    const summaryHtml = `
+      <h3 style="font-size:14px; margin-top:0; margin-bottom:8px;">المبيعات حسب الفئة</h3>
+      ${Object.entries(reportData.categorizedSales)
+        .map(
+          ([cat, data]: [string, any]) => `
+        <div style="display:flex; justify-content:space-between; font-size:12px; border-bottom:1px solid #e2e8f0; padding:4px 0;">
+          <span>${cat}</span>
+          <span>${data.qty} قطعة | ${data.total.toFixed(2)} EGP</span>
+        </div>
+      `,
+        )
+        .join("")}
+    `;
+    printAccountingDocument({ ...reportData, summaryHtml });
+    setShowReportPreview(false);
   };
 
   const exportCashierReportToExcel = (mode: "shift" | "range") => {
@@ -830,7 +961,7 @@ function CashierTreasuryPage() {
 
   if (!isMounted) {
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans" dir="rtl">
+      <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
         <header className="px-6 py-5 bg-white border-b border-slate-200/80 sticky top-0 z-50 shadow-sm">
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -856,7 +987,7 @@ function CashierTreasuryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans" dir="rtl">
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
       <div className="px-6 pt-4 max-w-7xl mx-auto w-full">
         <BackToRestaurantButton />
       </div>
@@ -2148,10 +2279,7 @@ function CashierTreasuryPage() {
 
       {/* Export Report & Date Filter Dialog */}
       <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
-        <DialogContent
-          className="max-w-lg w-full bg-white text-slate-900 border-slate-200 rounded-2xl p-6"
-          dir="rtl"
-        >
+        <DialogContent className="max-w-lg w-full bg-white text-slate-900 border-slate-200 rounded-2xl p-6">
           <DialogHeader className="text-right">
             <DialogTitle className="text-xl font-black text-slate-900 flex items-center gap-2">
               <FileSpreadsheet className="text-emerald-600" size={22} />
@@ -2317,6 +2445,124 @@ function CashierTreasuryPage() {
               <span>{lang === "ar" ? "تحميل التقرير الأن" : "Download Excel"}</span>
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={showReportPreview} onOpenChange={setShowReportPreview}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{lang === "ar" ? "معاينة التقرير" : "Report Preview"}</DialogTitle>
+          </DialogHeader>
+          {reportData && (
+            <div className="space-y-6 text-sm">
+              <div className="text-center space-y-1 border-b pb-4">
+                <h2 className="text-xl font-bold">{reportData.title}</h2>
+                <p className="text-muted-foreground">{reportData.subtitle}</p>
+                <p className="text-xs text-muted-foreground">
+                  رقم المستند: {reportData.documentNo}
+                </p>
+              </div>
+
+              {reportData.totals && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {reportData.totals.map((t: any, i: number) => (
+                    <div
+                      key={i}
+                      className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center"
+                    >
+                      <div className="text-xs text-slate-500 mb-1">{t.label}</div>
+                      <div className="text-lg font-bold text-slate-900">{t.value}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="border rounded-xl overflow-hidden">
+                <table className="w-full text-right text-xs">
+                  <thead className="bg-slate-100 border-b">
+                    <tr>
+                      {reportData.columns?.map((col: any) => (
+                        <th
+                          key={col.key}
+                          className="p-2 font-semibold text-slate-700"
+                          style={{ textAlign: col.align || "right" }}
+                        >
+                          {col.label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {reportData.rows?.length > 0 ? (
+                      reportData.rows.map((row: any, i: number) => (
+                        <tr key={i} className="hover:bg-slate-50">
+                          {reportData.columns?.map((col: any) => (
+                            <td
+                              key={col.key}
+                              className="p-2"
+                              style={{ textAlign: col.align || "right" }}
+                            >
+                              {row[col.key]}
+                            </td>
+                          ))}
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td
+                          colSpan={reportData.columns?.length || 1}
+                          className="p-4 text-center text-slate-500"
+                        >
+                          لا توجد حركات
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {reportData.categorizedSales &&
+                Object.keys(reportData.categorizedSales).length > 0 && (
+                  <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100">
+                    <h3 className="font-bold text-emerald-800 mb-3 border-b border-emerald-200 pb-2">
+                      المبيعات حسب الفئة
+                    </h3>
+                    <div className="space-y-2">
+                      {Object.entries(reportData.categorizedSales).map(
+                        ([cat, data]: [string, any]) => (
+                          <div
+                            key={cat}
+                            className="flex justify-between items-center text-emerald-900"
+                          >
+                            <span className="font-medium">{cat}</span>
+                            <div className="flex gap-4 text-xs">
+                              <span className="bg-white px-2 py-1 rounded shadow-sm">
+                                {data.qty} قطعة
+                              </span>
+                              <span className="bg-white px-2 py-1 rounded shadow-sm font-bold">
+                                {data.total.toFixed(2)} EGP
+                              </span>
+                            </div>
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  </div>
+                )}
+
+              <div className="flex justify-end gap-3 pt-4 border-t sticky bottom-0 bg-white p-2">
+                <Button variant="outline" onClick={() => setShowReportPreview(false)}>
+                  إلغاء
+                </Button>
+                <Button
+                  onClick={handleConfirmPrint}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                >
+                  <Printer size={16} />
+                  طباعة التقرير
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

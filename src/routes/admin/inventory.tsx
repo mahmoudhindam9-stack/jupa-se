@@ -38,12 +38,31 @@ import {
   Settings,
   Building2,
   X,
+  Loader2,
 } from "lucide-react";
 import { WarehouseManagement } from "@/features/inventory/components/WarehouseManagement";
 import { SupplierManagement } from "@/features/inventory/components/SupplierManagement";
 import { PurchaseManagement } from "@/features/inventory/components/PurchaseManagement";
 import { BackToRestaurantButton } from "@/components/admin/BackToRestaurantButton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Table,
   TableBody,
@@ -201,13 +220,58 @@ function InventoryPage() {
     item_code: "",
     name_en: "",
     category: "خامات ومواد أولية",
-    preferred_supplier_id: "sup-1",
+    preferred_supplier_id: "",
     average_cost: "0",
     last_purchase_price: "0",
     status: "active",
+    currency: "USD",
+    exchange_rate: "1",
+    treasury_id: "",
+    transaction_date: new Date().toISOString().split("T")[0],
+    transaction_time: new Date().toTimeString().slice(0, 5),
   });
 
+  const [saveSuccessNotification, setSaveSuccessNotification] = useState<{
+    open: boolean;
+    itemName: string;
+    journalRef: string;
+    txNumber: string;
+    treasuryName: string;
+    amount: number;
+    currency: string;
+  }>({
+    open: false,
+    itemName: "",
+    journalRef: "",
+    txNumber: "",
+    treasuryName: "",
+    amount: 0,
+    currency: "USD",
+  });
+
+  const { exchangeRates } = useSettings();
+
+  // Rate variance calculations (±10%)
+  const currentMainRate = useMemo(() => {
+    if (form.currency === "USD") return 1;
+    return exchangeRates[form.currency] || erpStore.getExchangeRate(form.currency) || 1;
+  }, [form.currency, exchangeRates]);
+
+  const minAllowedRate = useMemo(() => currentMainRate * 0.9, [currentMainRate]);
+  const maxAllowedRate = useMemo(() => currentMainRate * 1.1, [currentMainRate]);
+
+  const enteredRateNum = parseFloat(form.exchange_rate);
+  const isRateOutOfRange = useMemo(() => {
+    if (form.currency === "USD") return false;
+    if (isNaN(enteredRateNum) || enteredRateNum <= 0) return true;
+    return enteredRateNum < minAllowedRate || enteredRateNum > maxAllowedRate;
+  }, [form.currency, enteredRateNum, minAllowedRate, maxAllowedRate]);
+
   const [editing, setEditing] = useState<Inventory | null>(null);
+  const [isInventoryModalOpen, setIsInventoryModalOpen] = useState(false);
+  const [showInventorySaveConfirm, setShowInventorySaveConfirm] = useState(false);
+  const [showInventoryCancelConfirm, setShowInventoryCancelConfirm] = useState(false);
+  const [inventoryItemToDelete, setInventoryItemToDelete] = useState<Inventory | null>(null);
   const [txForm, setTxForm] = useState({ inventory_id: "", type: "in", quantity: "", note: "" });
 
   // Expiry & Quality state
@@ -353,21 +417,121 @@ function InventoryPage() {
 
       const data = await inventoryService.upsertInventoryItem(payload, editing?.id);
 
+      // Generate unique sequential transaction number & timestamps
+      const txNumber = "TX-INV-" + Date.now().toString().slice(-6);
+      const systemTimestamp = new Date().toISOString();
+      const txDate = form.transaction_date || new Date().toISOString().split("T")[0];
+      const txTime = form.transaction_time || new Date().toTimeString().slice(0, 5);
+
+      const selectedTreasury =
+        erpState.treasuries.find((t) => t.id === form.treasury_id) || erpState.treasuries[0];
+      const selectedSupplier =
+        erpState.suppliers.find((s) => s.id === form.preferred_supplier_id) ||
+        erpState.suppliers[0];
+
+      const rate = form.currency === "USD" ? 1 : Number(form.exchange_rate) || 1;
+      const totalAmount =
+        Number(form.cost) * (Number(form.quantity) > 0 ? Number(form.quantity) : 1);
+
+      // Create General Ledger Journal Entry
+      const inventoryAccCode = "11050100"; // المخزون - خامات ومستلزمات
+      const creditAccCode =
+        selectedTreasury?.account_code || selectedSupplier?.account_code || "101000";
+
+      let journalRef = "";
+      try {
+        const je = erpStore.addJournalEntry(
+          `معاملة ${editing ? "تعديل" : "إضافة"} صنف مخزني: ${form.name_ar} (رقم المعاملة: ${txNumber})`,
+          [
+            {
+              account_code: inventoryAccCode,
+              debit: totalAmount > 0 ? totalAmount : Number(form.cost),
+              credit: 0,
+              currency: form.currency,
+              rate: rate,
+              description: `مخزون خامات - ${form.name_ar}`,
+            },
+            {
+              account_code: creditAccCode,
+              debit: 0,
+              credit: totalAmount > 0 ? totalAmount : Number(form.cost),
+              currency: form.currency,
+              rate: rate,
+              description: `مدفوعات/استحقاق صنف - ${form.name_ar}`,
+            },
+          ],
+          undefined,
+          form.currency,
+          txDate,
+        );
+        journalRef = je.reference || je.id;
+      } catch (e) {
+        console.warn("Journal entry creation notice:", e);
+        journalRef = "JV-" + txNumber;
+      }
+
+      const costNum = Number(form.cost) || 0;
+      const avgCostNum = Number(form.average_cost) > 0 ? Number(form.average_cost) : costNum;
+      const lastCostNum =
+        Number(form.last_purchase_price) > 0 ? Number(form.last_purchase_price) : costNum;
+
+      // Save extended item data
       erpStore.saveExtendedItem(data.id, {
         item_code: form.item_code || "INV-" + data.id.substring(0, 5).toUpperCase(),
         barcode: form.barcode || "622" + Math.floor(Math.random() * 1000000000),
         name_en: form.name_en || "",
         category: form.category || "خامات ومواد أولية",
-        preferred_supplier_id: form.preferred_supplier_id || "sup-1",
-        average_cost: Number(form.average_cost || form.cost),
-        last_purchase_price: Number(form.last_purchase_price || form.cost),
+        preferred_supplier_id: form.preferred_supplier_id || selectedSupplier?.id || "sup-1",
+        supplier_name: selectedSupplier?.name_ar || "",
+        supplier_account_code: selectedSupplier?.account_code || "",
+        average_cost: avgCostNum,
+        last_purchase_price: lastCostNum,
         status: (form.status || "active") as "active" | "inactive",
+        currency: form.currency,
+        exchange_rate: rate,
+        treasury_id: form.treasury_id,
+        treasury_name: selectedTreasury?.name_ar || "",
+        transaction_date: txDate,
+        transaction_time: txTime,
+        system_timestamp: systemTimestamp,
+        tx_number: txNumber,
+        journal_entry_ref: journalRef,
+      });
+
+      // Record inventory transaction in ERP store
+      erpStore.recordInventoryDocTransaction({
+        inventory_id: data.id,
+        type: editing ? "adjustment" : "in",
+        quantity: Number(form.quantity),
+        note: `معاملة ${editing ? "تعديل" : "إضافة"} صنف | خزينة: ${selectedTreasury?.name_ar || "الرئيسية"} | مورد: ${selectedSupplier?.name_ar || "عام"} | قيد: ${journalRef} | كود المعاملة: ${txNumber}`,
+        currency: form.currency,
+        exchange_rate: rate,
+        treasury_id: form.treasury_id,
+        treasury_name: selectedTreasury?.name_ar,
+        supplier_id: form.preferred_supplier_id,
+        supplier_name: selectedSupplier?.name_ar,
+        supplier_account_code: selectedSupplier?.account_code,
+        transaction_date: txDate,
+        transaction_time: txTime,
+        system_timestamp: systemTimestamp,
+        tx_number: txNumber,
+        journal_entry_ref: journalRef,
+      });
+
+      setSaveSuccessNotification({
+        open: true,
+        itemName: form.name_ar,
+        journalRef: journalRef,
+        txNumber: txNumber,
+        treasuryName: selectedTreasury?.name_ar || "الخزينة الرئيسية",
+        amount: totalAmount > 0 ? totalAmount : Number(form.cost),
+        currency: form.currency,
       });
 
       erpStore.logAction(
         "ADMIN",
         editing ? "تحديث صنف بالمخزن" : "إضافة صنف للمخزن",
-        `تم ${editing ? "تعديل" : "إنشاء"} صنف ${form.name_ar} بكمية ${form.quantity}`,
+        `تم ${editing ? "تعديل" : "إنشاء"} صنف ${form.name_ar} بكمية ${form.quantity} مع قيد يومية #${journalRef}`,
       );
       return data;
     },
@@ -375,27 +539,11 @@ function InventoryPage() {
       queryClient.invalidateQueries({ queryKey: ["admin", "inventory"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "warehouses"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "warehouse_inventory"] });
+      setIsInventoryModalOpen(false);
+      setShowInventorySaveConfirm(false);
+      setShowInventoryCancelConfirm(false);
       setEditing(null);
-      setForm({
-        name_ar: "",
-        unit: "كيلو",
-        quantity: "0",
-        min_level: "0",
-        cost: "0",
-        barcode: "",
-        item_code: "",
-        name_en: "",
-        category: "خامات ومواد أولية",
-        preferred_supplier_id: "sup-1",
-        average_cost: "0",
-        last_purchase_price: "0",
-        status: "active",
-      });
       setErpState(erpStore.getState());
-      toast({
-        title: "تم الحفظ بنجاح",
-        description: editing ? "تمت مزامنة تعديلات الصنف بنجاح!" : "تمت إضافة الصنف الجديد بنجاح!",
-      });
     },
     onError: (err: any) => {
       toast({
@@ -511,8 +659,65 @@ function InventoryPage() {
     },
   });
 
+  const openAddInventoryModal = () => {
+    setEditing(null);
+    const firstTreasuryId = erpState.treasuries[0]?.id || "";
+    const firstSupplierId = erpState.suppliers[0]?.id || "";
+    setForm({
+      name_ar: "",
+      unit: "كيلو",
+      quantity: "0",
+      min_level: "0",
+      cost: "0",
+      barcode: "",
+      item_code: "",
+      name_en: "",
+      category: "خامات ومواد أولية",
+      preferred_supplier_id: firstSupplierId,
+      average_cost: "0",
+      last_purchase_price: "0",
+      status: "active",
+      currency: "USD",
+      exchange_rate: "1",
+      treasury_id: firstTreasuryId,
+      transaction_date: new Date().toISOString().split("T")[0],
+      transaction_time: new Date().toTimeString().slice(0, 5),
+    });
+    setIsInventoryModalOpen(true);
+  };
+
+  const cancelEditInventory = () => {
+    setEditing(null);
+    const firstTreasuryId = erpState.treasuries[0]?.id || "";
+    const firstSupplierId = erpState.suppliers[0]?.id || "";
+    setForm({
+      name_ar: "",
+      unit: "كيلو",
+      quantity: "0",
+      min_level: "0",
+      cost: "0",
+      barcode: "",
+      item_code: "",
+      name_en: "",
+      category: "خامات ومواد أولية",
+      preferred_supplier_id: firstSupplierId,
+      average_cost: "0",
+      last_purchase_price: "0",
+      status: "active",
+      currency: "USD",
+      exchange_rate: "1",
+      treasury_id: firstTreasuryId,
+      transaction_date: new Date().toISOString().split("T")[0],
+      transaction_time: new Date().toTimeString().slice(0, 5),
+    });
+    setIsInventoryModalOpen(false);
+    setShowInventoryCancelConfirm(false);
+  };
+
   const startEdit = (i: Inventory) => {
     const ext = erpStore.getExtendedItem(i.id);
+    const firstTreasuryId = erpState.treasuries[0]?.id || "";
+    const firstSupplierId = erpState.suppliers[0]?.id || "";
     setEditing(i);
     setForm({
       name_ar: i.name_ar,
@@ -524,11 +729,23 @@ function InventoryPage() {
       item_code: ext.item_code || "",
       name_en: ext.name_en || "",
       category: ext.category || "خامات ومواد أولية",
-      preferred_supplier_id: ext.preferred_supplier_id || "sup-1",
+      preferred_supplier_id: ext.preferred_supplier_id || firstSupplierId,
       average_cost: String(ext.average_cost || i.cost),
       last_purchase_price: String(ext.last_purchase_price || i.cost),
       status: ext.status || "active",
+      currency: ext.currency || (i as any).currency || "USD",
+      exchange_rate: String(ext.exchange_rate || (i as any).exchange_rate || "1"),
+      treasury_id: ext.treasury_id || (i as any).treasury_id || firstTreasuryId,
+      transaction_date:
+        ext.transaction_date ||
+        (i as any).transaction_date ||
+        new Date().toISOString().split("T")[0],
+      transaction_time:
+        ext.transaction_time ||
+        (i as any).transaction_time ||
+        new Date().toTimeString().slice(0, 5),
     });
+    setIsInventoryModalOpen(true);
   };
 
   const handleAddDocItem = () => {
@@ -1031,7 +1248,7 @@ function InventoryPage() {
   }, [txForm, inventoryQuery.data]);
 
   return (
-    <div className="space-y-6 text-right" dir="rtl">
+    <div className="space-y-6 text-right">
       <BackToRestaurantButton />
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -1171,199 +1388,6 @@ function InventoryPage() {
         </TabsContent>
 
         <TabsContent value="stock" className="space-y-4 mt-4">
-          {/* Add/Edit Inventory Item Form */}
-          <div className="bg-card border border-border p-5 rounded-2xl space-y-4">
-            <h3 className="font-bold text-base text-primary flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-primary inline-block"></span>
-              {editing ? `تعديل الصنف المتقدم: ${editing.name_ar}` : "إضافة صنف مخزني متقدم جديد"}
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <Label className="text-xs font-bold">الاسم بالعربية *</Label>
-                <Input
-                  className="mt-1.5"
-                  value={form.name_ar}
-                  onChange={(e) => setForm((s) => ({ ...s, name_ar: e.target.value }))}
-                  placeholder="مثال: لحم مفروم"
-                />
-              </div>
-
-              <div>
-                <Label className="text-xs font-bold">الاسم بالإنجليزية</Label>
-                <Input
-                  className="mt-1.5"
-                  value={form.name_en}
-                  onChange={(e) => setForm((s) => ({ ...s, name_en: e.target.value }))}
-                  placeholder="مثال: Minced Beef"
-                />
-              </div>
-
-              <div>
-                <Label className="text-xs font-bold">كود الصنف الفريد (Unique Code)</Label>
-                <Input
-                  className="mt-1.5 font-mono"
-                  value={form.item_code}
-                  onChange={(e) => setForm((s) => ({ ...s, item_code: e.target.value }))}
-                  placeholder="مثال: ITEM-001"
-                />
-              </div>
-
-              <div>
-                <Label className="text-xs font-bold">الباركود (Barcode)</Label>
-                <Input
-                  className="mt-1.5 font-mono"
-                  value={form.barcode}
-                  onChange={(e) => setForm((s) => ({ ...s, barcode: e.target.value }))}
-                  placeholder="مثال: 622123456789"
-                />
-              </div>
-
-              <div>
-                <Label className="text-xs font-bold">تصنيف الصنف</Label>
-                <select
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-55 mt-1.5 font-bold"
-                  value={form.category}
-                  onChange={(e) => setForm((s) => ({ ...s, category: e.target.value }))}
-                >
-                  <option value="خامات ومواد أولية">خامات ومواد أولية</option>
-                  <option value="خضروات وفواكه">خضروات وفواكه</option>
-                  <option value="لحوم ودواجن">لحوم ودواجن</option>
-                  <option value="مشروبات وعصائر">مشروبات وعصائر</option>
-                  <option value="مواد تعبئة وتغليف">مواد تعبئة وتغليف</option>
-                  <option value="أخرى">أخرى</option>
-                </select>
-              </div>
-
-              <div>
-                <Label className="text-xs font-bold">وحدة القياس</Label>
-                <Input
-                  className="mt-1.5"
-                  value={form.unit}
-                  onChange={(e) => setForm((s) => ({ ...s, unit: e.target.value }))}
-                  placeholder="مثال: كيلو"
-                />
-              </div>
-
-              <div>
-                <Label className="text-xs font-bold">المورد المفضل</Label>
-                <select
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-55 mt-1.5 font-bold"
-                  value={form.preferred_supplier_id}
-                  onChange={(e) =>
-                    setForm((s) => ({ ...s, preferred_supplier_id: e.target.value }))
-                  }
-                >
-                  {erpState.suppliers.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name_ar}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <Label className="text-xs font-bold">حد الأمان (التنبيه)</Label>
-                <Input
-                  className="mt-1.5"
-                  type="number"
-                  value={form.min_level}
-                  onChange={(e) => setForm((s) => ({ ...s, min_level: e.target.value }))}
-                />
-              </div>
-
-              <div>
-                <Label className="text-xs font-bold">سعر الشراء الحالي</Label>
-                <Input
-                  className="mt-1.5"
-                  type="number"
-                  value={form.cost}
-                  onChange={(e) => setForm((s) => ({ ...s, cost: e.target.value }))}
-                />
-              </div>
-
-              <div>
-                <Label className="text-xs font-bold">متوسط التكلفة (Average Cost)</Label>
-                <Input
-                  className="mt-1.5 bg-muted"
-                  type="number"
-                  disabled
-                  value={form.average_cost}
-                  onChange={(e) => setForm((s) => ({ ...s, average_cost: e.target.value }))}
-                />
-              </div>
-
-              <div>
-                <Label className="text-xs font-bold">آخر سعر شراء (Last Purchase Price)</Label>
-                <Input
-                  className="mt-1.5 bg-muted"
-                  type="number"
-                  disabled
-                  value={form.last_purchase_price}
-                  onChange={(e) => setForm((s) => ({ ...s, last_purchase_price: e.target.value }))}
-                />
-              </div>
-
-              <div>
-                <Label className="text-xs font-bold">حالة الصنف</Label>
-                <select
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-55 mt-1.5 font-bold"
-                  value={form.status}
-                  onChange={(e) => setForm((s) => ({ ...s, status: e.target.value }))}
-                >
-                  <option value="active">نشط (Active)</option>
-                  <option value="inactive">غير نشط (Inactive)</option>
-                </select>
-              </div>
-
-              {!editing && (
-                <div>
-                  <Label className="text-xs font-bold">الكمية الافتتاحية</Label>
-                  <Input
-                    className="mt-1.5"
-                    type="number"
-                    value={form.quantity}
-                    onChange={(e) => setForm((s) => ({ ...s, quantity: e.target.value }))}
-                  />
-                </div>
-              )}
-            </div>
-
-            <div className="flex gap-2 justify-end border-t border-border/40 pt-4">
-              <Button
-                onClick={() => upsert.mutate()}
-                disabled={!form.name_ar || upsert.isPending}
-                className="font-bold flex items-center gap-1.5"
-              >
-                <span>{editing ? "حفظ التعديلات المتقدمة" : "إضافة صنف متكامل للمستودع"}</span>
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setEditing(null);
-                  setForm({
-                    name_ar: "",
-                    unit: "كيلو",
-                    quantity: "0",
-                    min_level: "0",
-                    cost: "0",
-                    barcode: "",
-                    item_code: "",
-                    name_en: "",
-                    category: "خامات ومواد أولية",
-                    preferred_supplier_id: "sup-1",
-                    average_cost: "0",
-                    last_purchase_price: "0",
-                    status: "active",
-                  });
-                }}
-                className="font-bold"
-              >
-                إلغاء التعديل
-              </Button>
-            </div>
-          </div>
-
           {/* Search, Filter, and Table Section */}
           <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
             <div className="flex flex-col sm:flex-row gap-3 justify-between items-stretch sm:items-center">
@@ -1381,6 +1405,13 @@ function InventoryPage() {
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  onClick={openAddInventoryModal}
+                  className="font-bold bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-2 h-10 px-5 rounded-xl shadow-xs cursor-pointer"
+                >
+                  <Plus size={18} />
+                  <span>إضافة صنف مخزني جديد</span>
+                </Button>
                 <button
                   onClick={() => setFilterLowStock(!filterLowStock)}
                   className={`px-4 py-1.5 rounded-full text-xs font-bold border transition ${
@@ -1579,12 +1610,8 @@ function InventoryPage() {
                             <Button
                               size="icon"
                               variant="destructive"
-                              className="h-8 w-8"
-                              onClick={() => {
-                                if (confirm(`هل أنت متأكد من حذف ${i.name_ar} نهائياً؟`)) {
-                                  deleteItem.mutate(i.id);
-                                }
-                              }}
+                              className="h-8 w-8 cursor-pointer"
+                              onClick={() => setInventoryItemToDelete(i)}
                               disabled={deleteItem.isPending}
                             >
                               <Trash2 size={12} />
@@ -1598,6 +1625,470 @@ function InventoryPage() {
               </table>
             </div>
           </div>
+
+          {/* Add / Edit Inventory Item Dialog Modal */}
+          <Dialog
+            open={isInventoryModalOpen}
+            onOpenChange={(open) => {
+              if (!open) {
+                setShowInventoryCancelConfirm(true);
+              } else {
+                setIsInventoryModalOpen(true);
+              }
+            }}
+          >
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader className="text-right border-b border-border/40 pb-3">
+                <DialogTitle className="font-black text-xl text-primary flex items-center gap-2">
+                  <Layers3 size={22} />
+                  {editing
+                    ? `تعديل الصنف المخزني: ${editing.name_ar}`
+                    : "إضافة صنف مخزني جديد للمستودع"}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  قم بإدخال تفاصيل الصنف والأسعار والباركود والمورد ثم انقر حفظ
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                <div className="md:col-span-2">
+                  <Label className="text-xs font-bold">الاسم بالعربية *</Label>
+                  <Input
+                    className="mt-1.5 font-bold"
+                    value={form.name_ar}
+                    onChange={(e) => setForm((s) => ({ ...s, name_ar: e.target.value }))}
+                    placeholder="مثال: لحم مفروم بلدي"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-xs font-bold">الاسم بالإنجليزية</Label>
+                  <Input
+                    className="mt-1.5 font-bold"
+                    value={form.name_en}
+                    onChange={(e) => setForm((s) => ({ ...s, name_en: e.target.value }))}
+                    placeholder="مثال: Minced Beef"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-xs font-bold">كود الصنف الفريد (Item Code)</Label>
+                  <Input
+                    className="mt-1.5 font-mono font-bold"
+                    value={form.item_code}
+                    onChange={(e) => setForm((s) => ({ ...s, item_code: e.target.value }))}
+                    placeholder="مثال: ITEM-001"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-xs font-bold">الباركود (Barcode)</Label>
+                  <Input
+                    className="mt-1.5 font-mono font-bold"
+                    value={form.barcode}
+                    onChange={(e) => setForm((s) => ({ ...s, barcode: e.target.value }))}
+                    placeholder="مثال: 622123456789"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-xs font-bold">تصنيف الصنف بالمخزن</Label>
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring mt-1.5 font-bold text-right"
+                    value={form.category}
+                    onChange={(e) => setForm((s) => ({ ...s, category: e.target.value }))}
+                  >
+                    <option value="مأكولات">مأكولات</option>
+                    <option value="مشروبات">مشروبات</option>
+                    <option value="معجنات">معجنات</option>
+                    <option value="خامات ومواد أولية">خامات ومواد أولية</option>
+                    <option value="مواد تعبئة وتغليف">مواد تعبئة وتغليف</option>
+                    <option value="أخرى">أخرى</option>
+                  </select>
+                </div>
+
+                <div>
+                  <Label className="text-xs font-bold">وحدة القياس</Label>
+                  <Input
+                    className="mt-1.5 font-bold"
+                    value={form.unit}
+                    onChange={(e) => setForm((s) => ({ ...s, unit: e.target.value }))}
+                    placeholder="مثال: كيلو"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-xs font-bold text-primary">العملة *</Label>
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring mt-1.5 font-bold text-right"
+                    value={form.currency}
+                    onChange={(e) => {
+                      const newCurr = e.target.value;
+                      if (newCurr === "USD") {
+                        setForm((s) => ({ ...s, currency: newCurr, exchange_rate: "1" }));
+                      } else {
+                        const mainRate =
+                          exchangeRates[newCurr] || erpStore.getExchangeRate(newCurr) || 1;
+                        setForm((s) => ({
+                          ...s,
+                          currency: newCurr,
+                          exchange_rate: String(mainRate),
+                        }));
+                      }
+                    }}
+                  >
+                    <option value="USD">دولار أمريكي (USD)</option>
+                    <option value="EGP">جنية مصري (EGP)</option>
+                    <option value="SSP">جنيه جنوب السودان (SSP)</option>
+                  </select>
+                </div>
+
+                {form.currency !== "USD" && (
+                  <div>
+                    <Label className="text-xs font-bold text-primary flex items-center justify-between">
+                      <span>سعر الصرف (مقابل 1 USD) *</span>
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        (السعر الرئيسي: {currentMainRate})
+                      </span>
+                    </Label>
+                    <Input
+                      className={`mt-1.5 font-bold font-mono ${
+                        isRateOutOfRange ? "border-rose-500 bg-rose-500/10 text-rose-700" : ""
+                      }`}
+                      type="number"
+                      step="0.01"
+                      value={form.exchange_rate}
+                      onChange={(e) => setForm((s) => ({ ...s, exchange_rate: e.target.value }))}
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <Label className="text-xs font-bold text-primary">
+                    الخزينة / الحساب النقدي للمدفوعات *
+                  </Label>
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring mt-1.5 font-bold text-right"
+                    value={form.treasury_id}
+                    onChange={(e) => setForm((s) => ({ ...s, treasury_id: e.target.value }))}
+                  >
+                    {erpState.treasuries.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name_ar} (الرصيد: {formatPrice(t.balance, t.currency as any)}) [كود:{" "}
+                        {t.account_code || t.id}]
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <Label className="text-xs font-bold">المورد ورقم الحساب المحاسبي *</Label>
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring mt-1.5 font-bold text-right"
+                    value={form.preferred_supplier_id}
+                    onChange={(e) =>
+                      setForm((s) => ({ ...s, preferred_supplier_id: e.target.value }))
+                    }
+                  >
+                    {erpState.suppliers.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name_ar} (رقم الحساب: {s.account_code || "بدون كود"})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <Label className="text-xs font-bold">تاريخ المعاملة الفعلي *</Label>
+                  <Input
+                    className="mt-1.5 font-bold"
+                    type="date"
+                    value={form.transaction_date}
+                    onChange={(e) => setForm((s) => ({ ...s, transaction_date: e.target.value }))}
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-xs font-bold">وقت المعاملة *</Label>
+                  <Input
+                    className="mt-1.5 font-bold"
+                    type="time"
+                    value={form.transaction_time}
+                    onChange={(e) => setForm((s) => ({ ...s, transaction_time: e.target.value }))}
+                  />
+                </div>
+
+                {form.currency !== "USD" && isRateOutOfRange && (
+                  <div className="md:col-span-3 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-400 text-xs font-bold flex items-center gap-2">
+                    <AlertTriangle size={20} className="shrink-0 text-rose-600" />
+                    <div>
+                      ⚠️ تحذير: سعر الصرف المدخل ({enteredRateNum || 0}) خارج النطاق المسموح به (من{" "}
+                      {minAllowedRate.toFixed(2)} إلى {maxAllowedRate.toFixed(2)} - بنسبة ±10% عن
+                      سعر النظام الرئيسي الحالي {currentMainRate}). لا يمكن الحفظ حتى يتم تصحيح سعر
+                      الصرف.
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <Label className="text-xs font-bold">حد الأمان (التنبيه عند النقص)</Label>
+                  <Input
+                    className="mt-1.5 font-bold"
+                    type="number"
+                    value={form.min_level}
+                    onChange={(e) => setForm((s) => ({ ...s, min_level: e.target.value }))}
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-xs font-bold">
+                    سعر الشراء / التكلفة ({form.currency}) *
+                  </Label>
+                  <Input
+                    className="mt-1.5 font-bold"
+                    type="number"
+                    value={form.cost}
+                    onChange={(e) => {
+                      const newCost = e.target.value;
+                      setForm((s) => ({
+                        ...s,
+                        cost: newCost,
+                        average_cost:
+                          !s.average_cost || s.average_cost === "0" || s.average_cost === s.cost
+                            ? newCost
+                            : s.average_cost,
+                        last_purchase_price:
+                          !s.last_purchase_price ||
+                          s.last_purchase_price === "0" ||
+                          s.last_purchase_price === s.cost
+                            ? newCost
+                            : s.last_purchase_price,
+                      }));
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-xs font-bold">متوسط التكلفة (Average Cost)</Label>
+                  <Input
+                    className="mt-1.5 font-bold"
+                    type="number"
+                    value={form.average_cost}
+                    onChange={(e) => setForm((s) => ({ ...s, average_cost: e.target.value }))}
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-xs font-bold">آخر سعر شراء (Last Purchase Price)</Label>
+                  <Input
+                    className="mt-1.5 font-bold"
+                    type="number"
+                    value={form.last_purchase_price}
+                    onChange={(e) =>
+                      setForm((s) => ({ ...s, last_purchase_price: e.target.value }))
+                    }
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-xs font-bold">حالة الصنف بالمخزن</Label>
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring mt-1.5 font-bold text-right"
+                    value={form.status}
+                    onChange={(e) => setForm((s) => ({ ...s, status: e.target.value }))}
+                  >
+                    <option value="active">نشط (Active)</option>
+                    <option value="inactive">غير نشط (Inactive)</option>
+                  </select>
+                </div>
+
+                {!editing && (
+                  <div>
+                    <Label className="text-xs font-bold">الكمية الافتتاحية</Label>
+                    <Input
+                      className="mt-1.5 font-bold"
+                      type="number"
+                      value={form.quantity}
+                      onChange={(e) => setForm((s) => ({ ...s, quantity: e.target.value }))}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter className="flex gap-2 justify-end border-t border-border/40 pt-4 mt-4">
+                <Button
+                  type="button"
+                  onClick={() => setShowInventorySaveConfirm(true)}
+                  disabled={!form.name_ar || upsert.isPending || isRateOutOfRange}
+                  className="font-bold px-6 cursor-pointer"
+                >
+                  {editing ? "حفظ التعديلات" : "إضافة الصنف للمخزن"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowInventoryCancelConfirm(true)}
+                  className="font-bold cursor-pointer"
+                >
+                  إلغاء
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Inventory Save Confirm */}
+          <AlertDialog open={showInventorySaveConfirm} onOpenChange={setShowInventorySaveConfirm}>
+            <AlertDialogContent className="text-right">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-lg font-black text-primary flex items-center gap-2">
+                  <Layers3 size={18} />
+                  تأكيد حفظ بيانات الصنف المخزني
+                </AlertDialogTitle>
+                <AlertDialogDescription className="text-sm text-muted-foreground">
+                  هل أنت متأكد من حفظ بيانات الصنف{" "}
+                  <span className="font-bold text-foreground">"{form.name_ar}"</span> وإنشاء قيد
+                  يومية محاسبي تلقائي في المستودع؟
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="gap-2 pt-2">
+                <AlertDialogCancel className="font-bold cursor-pointer">إلغاء</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold cursor-pointer"
+                  onClick={() => upsert.mutate()}
+                >
+                  {upsert.isPending ? <Loader2 className="animate-spin h-4 w-4" /> : "تأكيد الحفظ"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* Journal Entry Success Notification Dialog */}
+          <AlertDialog
+            open={saveSuccessNotification.open}
+            onOpenChange={(open) => setSaveSuccessNotification((s) => ({ ...s, open }))}
+          >
+            <AlertDialogContent className="text-right max-w-md">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-xl font-black text-emerald-600 flex items-center gap-2">
+                  <CheckCircle size={24} className="text-emerald-500" />
+                  تم حفظ الصنف والقيد المحاسبي بنجاح!
+                </AlertDialogTitle>
+                <AlertDialogDescription className="text-sm text-muted-foreground">
+                  تم تسديد القيد المحاسبي وحفظ بيانات الصنف وتحديث أرصدة الخزينة والحسابات ذات
+                  الصلة.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 my-2 space-y-2.5 text-xs font-bold text-slate-800 dark:text-slate-100">
+                <div className="flex justify-between items-center pb-1 border-b border-emerald-500/20">
+                  <span className="text-muted-foreground">اسم الصنف:</span>
+                  <span className="font-black text-sm text-primary">
+                    {saveSuccessNotification.itemName}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pb-1 border-b border-emerald-500/20">
+                  <span className="text-muted-foreground">
+                    رقم قيد اليومية المحاسبي (Journal Entry):
+                  </span>
+                  <span className="font-black font-mono bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded text-sm">
+                    {saveSuccessNotification.journalRef}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pb-1 border-b border-emerald-500/20">
+                  <span className="text-muted-foreground">رقم المعاملة (Tx Number):</span>
+                  <span className="font-mono text-slate-700 dark:text-slate-300">
+                    {saveSuccessNotification.txNumber}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pb-1 border-b border-emerald-500/20">
+                  <span className="text-muted-foreground">الخزينة المخصصة:</span>
+                  <span>{saveSuccessNotification.treasuryName}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">القيمة والعملة:</span>
+                  <span className="font-black text-emerald-600 dark:text-emerald-400">
+                    {saveSuccessNotification.amount.toLocaleString()}{" "}
+                    {saveSuccessNotification.currency}
+                  </span>
+                </div>
+              </div>
+
+              <AlertDialogFooter className="pt-2">
+                <AlertDialogAction
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold cursor-pointer"
+                  onClick={() => setSaveSuccessNotification((s) => ({ ...s, open: false }))}
+                >
+                  تم، فهمت
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* Inventory Cancel Confirm */}
+          <AlertDialog
+            open={showInventoryCancelConfirm}
+            onOpenChange={setShowInventoryCancelConfirm}
+          >
+            <AlertDialogContent className="text-right">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-lg font-black text-amber-600 flex items-center gap-2">
+                  <AlertTriangle size={18} />
+                  تأكيد إلغاء التعديل
+                </AlertDialogTitle>
+                <AlertDialogDescription className="text-sm text-muted-foreground">
+                  هل أنت متأكد من إلغاء عملية إضافة/تعديل الصنف؟ سيتم تجاهل جميع البيانات غير
+                  المحفوظة.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="gap-2 pt-2">
+                <AlertDialogCancel className="font-bold cursor-pointer">
+                  متابعة التعديل
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive hover:bg-destructive/90 text-destructive-foreground font-bold cursor-pointer"
+                  onClick={cancelEditInventory}
+                >
+                  نعم، إلغاء وإغلاق
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* Inventory Delete Confirm */}
+          <AlertDialog
+            open={!!inventoryItemToDelete}
+            onOpenChange={(open) => !open && setInventoryItemToDelete(null)}
+          >
+            <AlertDialogContent className="text-right">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-lg font-black text-destructive flex items-center gap-2">
+                  <Trash2 size={18} />
+                  تأكيد حذف الصنف من المخزن
+                </AlertDialogTitle>
+                <AlertDialogDescription className="text-sm text-muted-foreground">
+                  هل أنت متأكد من حذف صنف{" "}
+                  <span className="font-bold text-foreground">
+                    "{inventoryItemToDelete?.name_ar}"
+                  </span>{" "}
+                  نهائياً من المستودع؟ لا يمكن التراجع عن هذا الإجراء.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="gap-2 pt-2">
+                <AlertDialogCancel className="font-bold cursor-pointer">إلغاء</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive hover:bg-destructive/90 text-destructive-foreground font-bold cursor-pointer"
+                  onClick={() => {
+                    if (inventoryItemToDelete) {
+                      deleteItem.mutate(inventoryItemToDelete.id);
+                      setInventoryItemToDelete(null);
+                    }
+                  }}
+                >
+                  نعم، حذف نهائي
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </TabsContent>
 
         <TabsContent value="transactions" className="space-y-8 mt-4">
@@ -2603,15 +3094,29 @@ function InventoryPage() {
                       };
                     });
                   } else if (selectedReportType === "movement") {
-                    exportData = (transactionsQuery.data ?? []).map((tx) => {
+                    exportData = (transactionsQuery.data ?? []).map((tx: any) => {
                       const inv = (inventoryQuery.data ?? []).find((i) => i.id === tx.inventory_id);
+                      const ext = inv ? erpStore.getExtendedItem(inv.id) : null;
+                      const txDate =
+                        tx.transaction_date ||
+                        ext?.transaction_date ||
+                        (tx.created_at ? tx.created_at.split("T")[0] : "");
+                      const txTime = tx.transaction_time || ext?.transaction_time || "";
+                      const sysTime = tx.system_timestamp || tx.created_at || "";
                       return {
-                        التاريخ: new Date(tx.created_at || "").toLocaleDateString("ar-EG"),
+                        "رقم المعاملة": tx.tx_number || ext?.tx_number || "-",
+                        "رقم قيد اليومية": tx.journal_entry_ref || ext?.journal_entry_ref || "-",
+                        "تاريخ المعاملة الفعلي": `${txDate} ${txTime}`.trim(),
+                        "توقيت تسجيل النظام": sysTime,
                         الصنف: inv?.name_ar || "",
                         "نوع الحركة": tx.type === "in" ? "إضافة (+)" : "صرف (-)",
                         الكمية: tx.quantity,
                         الوحدة: inv?.unit || "",
-                        "البيان / السبب": tx.note,
+                        العملة: tx.currency || ext?.currency || "USD",
+                        "سعر الصرف": tx.exchange_rate || ext?.exchange_rate || 1,
+                        الخزينة: tx.treasury_name || ext?.treasury_name || "-",
+                        "المورد/الحساب": tx.supplier_name || ext?.supplier_name || "-",
+                        "البيان / السبب": tx.note || "-",
                       };
                     });
                   }
@@ -3111,23 +3616,59 @@ function InventoryPage() {
                     <table className="w-full text-right text-xs">
                       <thead>
                         <tr className="border-b border-border bg-muted/30 text-muted-foreground font-bold">
-                          <th className="p-2.5">التاريخ</th>
+                          <th className="p-2.5">رقم المعاملة / القيد</th>
+                          <th className="p-2.5">تاريخ المعاملة الفعلي</th>
+                          <th className="p-2.5">توقيت تسجيل النظام</th>
                           <th className="p-2.5">اسم الصنف</th>
                           <th className="p-2.5 text-center">نوع الحركة</th>
-                          <th className="p-2.5 text-center">الكمية</th>
+                          <th className="p-2.5 text-center">الكمية والعملة</th>
+                          <th className="p-2.5">الخزينة والمورد</th>
                           <th className="p-2.5">البيان والسبب</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {(transactionsQuery.data ?? []).map((tx) => {
+                        {(transactionsQuery.data ?? []).map((tx: any) => {
                           const inv = (inventoryQuery.data ?? []).find(
                             (i) => i.id === tx.inventory_id,
                           );
+                          const ext = inv ? erpStore.getExtendedItem(inv.id) : null;
+                          const txDate =
+                            tx.transaction_date ||
+                            ext?.transaction_date ||
+                            (tx.created_at ? tx.created_at.split("T")[0] : "");
+                          const txTime = tx.transaction_time || ext?.transaction_time || "";
+                          const sysTime =
+                            tx.system_timestamp || tx.created_at
+                              ? new Date(tx.system_timestamp || tx.created_at).toLocaleString(
+                                  "ar-EG",
+                                )
+                              : "-";
+                          const curr = tx.currency || ext?.currency || "USD";
+                          const rate = tx.exchange_rate || ext?.exchange_rate || 1;
+                          const treasuryName =
+                            tx.treasury_name || ext?.treasury_name || "الخزينة الرئيسية";
+                          const supplierName = tx.supplier_name || ext?.supplier_name || "-";
+                          const txNum = tx.tx_number || ext?.tx_number || "TX-INV-000";
+                          const journalRef =
+                            tx.journal_entry_ref || ext?.journal_entry_ref || "JV-000";
+
                           return (
                             <tr key={tx.id} className="border-b border-border/40 hover:bg-muted/10">
-                              <td className="p-2.5 text-muted-foreground">
-                                {new Date(tx.created_at || "").toLocaleString("ar-EG")}
+                              <td className="p-2.5 font-mono text-muted-foreground">
+                                <span className="block font-bold text-primary">{txNum}</span>
+                                <span className="block text-[10px] text-emerald-600 font-mono">
+                                  {journalRef}
+                                </span>
                               </td>
+                              <td className="p-2.5 font-bold text-slate-800 dark:text-slate-200">
+                                {txDate}{" "}
+                                {txTime && (
+                                  <span className="text-muted-foreground text-[11px]">
+                                    ({txTime})
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-2.5 text-muted-foreground text-[11px]">{sysTime}</td>
                               <td className="p-2.5 font-bold">{inv?.name_ar || "صنف مجهول"}</td>
                               <td className="p-2.5 text-center font-bold">
                                 <span
@@ -3141,9 +3682,28 @@ function InventoryPage() {
                                 </span>
                               </td>
                               <td className="p-2.5 text-center font-mono font-bold">
-                                {tx.quantity} {inv?.unit}
+                                <div>
+                                  {tx.quantity} {inv?.unit}
+                                </div>
+                                <div className="text-[10px] text-muted-foreground">
+                                  {curr} {curr !== "USD" && `(سعر: ${rate})`}
+                                </div>
                               </td>
-                              <td className="p-2.5 text-muted-foreground italic">{tx.note}</td>
+                              <td className="p-2.5 text-xs text-muted-foreground">
+                                <div>
+                                  <span className="font-bold text-foreground">خزينة:</span>{" "}
+                                  {treasuryName}
+                                </div>
+                                {supplierName !== "-" && (
+                                  <div>
+                                    <span className="font-bold text-foreground">مورد:</span>{" "}
+                                    {supplierName}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-2.5 text-muted-foreground italic text-[11px] max-w-[200px] truncate">
+                                {tx.note}
+                              </td>
                             </tr>
                           );
                         })}
@@ -3194,10 +3754,7 @@ function InventoryPage() {
 
           return (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto print:p-0 print:bg-white print:static">
-              <div
-                className="bg-card border border-border w-full max-w-4xl rounded-2xl p-6 space-y-6 shadow-2xl relative text-right print:shadow-none print:border-none print:max-w-none print:p-0"
-                dir="rtl"
-              >
+              <div className="bg-card border border-border w-full max-w-4xl rounded-2xl p-6 space-y-6 shadow-2xl relative text-right print:shadow-none print:border-none print:max-w-none print:p-0">
                 {/* Header */}
                 <div className="flex items-start justify-between border-b border-border/80 pb-4 print:pb-6">
                   <div className="space-y-1">
@@ -3374,10 +3931,7 @@ function InventoryPage() {
 
           return (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-              <div
-                className="bg-card border border-border w-full max-w-2xl rounded-2xl p-6 space-y-6 shadow-2xl relative text-right"
-                dir="rtl"
-              >
+              <div className="bg-card border border-border w-full max-w-2xl rounded-2xl p-6 space-y-6 shadow-2xl relative text-right">
                 <div className="flex items-start justify-between border-b border-border pb-4">
                   <div>
                     <h3 className="text-lg font-black text-foreground">
@@ -3512,10 +4066,7 @@ function InventoryPage() {
 
           return (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-              <div
-                className="bg-card border border-border w-full max-w-2xl rounded-2xl p-6 space-y-6 shadow-2xl relative text-right"
-                dir="rtl"
-              >
+              <div className="bg-card border border-border w-full max-w-2xl rounded-2xl p-6 space-y-6 shadow-2xl relative text-right">
                 <div className="flex items-start justify-between border-b border-border pb-4">
                   <div>
                     <h3 className="text-lg font-black text-rose-600">إرجاع مرتجع بضائع للمورد</h3>

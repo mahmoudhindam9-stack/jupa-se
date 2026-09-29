@@ -9,13 +9,15 @@ import {
 } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
+import { Chatbot } from "@/components/Chatbot";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { translator } from "../shared/services/translationService";
 import { createAppSync } from "../shared/services/appSync";
 import appCss from "../styles.css?url";
 
 function NotFoundComponent() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4" dir="rtl">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <main className="w-full max-w-md text-center" aria-labelledby="not-found-title">
         <p className="text-sm font-bold text-primary">Restocash ERP</p>
         <p className="mt-3 text-7xl font-black tracking-tight text-foreground" aria-hidden="true">
@@ -46,7 +48,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     console.error("Restocash route error:", error);
   }, [error]);
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4" dir="rtl">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <main className="w-full max-w-lg text-center" aria-labelledby="error-title">
         <p className="text-sm font-bold text-primary">Restocash ERP</p>
         <h1 id="error-title" className="mt-3 text-2xl font-black tracking-tight text-foreground">
@@ -123,14 +125,29 @@ function RootComponent() {
     return createAppSync(queryClient);
   }, [queryClient]);
   return (
-    <html lang="ar" dir="rtl">
+    <html lang="ar" translate="no" suppressHydrationWarning>
       <head>
+        <meta name="google" content="notranslate" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                const stored = localStorage.getItem("restocash-theme");
+                if (stored === "dark" || (!stored && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+                  document.documentElement.classList.add("dark");
+                }
+              } catch (e) {}
+            `,
+          }}
+        />
         <HeadContent />
       </head>
       <body>
         <QueryClientProvider client={queryClient}>
           <Outlet />
           <Toaster />
+          <Chatbot />
+          <ThemeToggle className="fixed bottom-4 left-4 z-50 rounded-full h-14 w-14 shadow-lg bg-background" />
         </QueryClientProvider>
         <Scripts />
       </body>

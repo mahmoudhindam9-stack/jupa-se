@@ -331,7 +331,7 @@ function LedgerPage() {
   };
 
   // UI state
-  const [selectedTab, setSelectedTab] = useState("ledger");
+  const [selectedTab, setSelectedTab] = useState("journal");
 
   const [isImportingOracle, setIsImportingOracle] = useState(false);
   const [isSavingToDb, setIsSavingToDb] = useState(false);
@@ -572,7 +572,7 @@ function LedgerPage() {
   >("ALL");
   const [journalSortOrder, setJournalSortOrder] = useState<
     "oldest" | "newest" | "ref_asc" | "ref_desc"
-  >("ref_asc");
+  >("newest");
   const [journalStartDate, setJournalStartDate] = useState("");
   // Find imports and state section to add new states for viewing journal entries
   const [journalEndDate, setJournalEndDate] = useState("");
@@ -1044,14 +1044,13 @@ function LedgerPage() {
     // Equity
     const equityAccounts = trialBalance.rows.filter((r) => r.type === "equity");
     console.log("DEBUG: equityAccounts", equityAccounts);
-    const totalEquity = equityAccounts.reduce(
-      (sum, r) => {
-        const val = r.balanceType === "Cr" ? r.endingBalance : -r.endingBalance;
-        console.log(`DEBUG: Equity Account ${r.code} (${r.name_ar}): Type=${r.balanceType}, Bal=${r.endingBalance}, Contribution=${val}`);
-        return sum + val;
-      },
-      0,
-    );
+    const totalEquity = equityAccounts.reduce((sum, r) => {
+      const val = r.balanceType === "Cr" ? r.endingBalance : -r.endingBalance;
+      console.log(
+        `DEBUG: Equity Account ${r.code} (${r.name_ar}): Type=${r.balanceType}, Bal=${r.endingBalance}, Contribution=${val}`,
+      );
+      return sum + val;
+    }, 0);
     console.log("DEBUG: totalEquity", totalEquity);
 
     return {
@@ -1513,7 +1512,7 @@ function LedgerPage() {
   };
 
   return (
-    <div className="p-3 sm:p-6 space-y-5 sm:space-y-6 max-w-7xl mx-auto w-full min-w-0" dir="rtl">
+    <div className="p-3 sm:p-6 space-y-5 sm:space-y-6 max-w-7xl mx-auto w-full min-w-0">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
@@ -1570,7 +1569,7 @@ function LedgerPage() {
               <Plus className="h-4 w-4" />
               إضافة قيد يومي مزدوج
             </Button>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" dir="rtl">
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader className="text-right">
                 <DialogTitle className="text-lg font-bold flex items-center gap-2">
                   <Scale className="h-5 w-5 text-primary" />
@@ -1750,7 +1749,7 @@ function LedgerPage() {
 
                           {/* Exchange Rate / Factor */}
                           <div className="md:col-span-2 space-y-1">
-                            <Label className="text-xs font-semibold">المعامل / الصرف</Label>
+                            <Label className="text-xs font-semibold">Rate (المعامل)</Label>
                             <Input
                               type="number"
                               min="0.0001"
@@ -1924,7 +1923,7 @@ function LedgerPage() {
 
           {/* Confirmation Alert Dialog */}
           <AlertDialog open={isConfirmPostOpen} onOpenChange={setIsConfirmPostOpen}>
-            <AlertDialogContent className="max-w-2xl text-right dir-rtl">
+            <AlertDialogContent className="max-w-2xl text-right">
               <AlertDialogHeader className="text-right space-y-2">
                 <AlertDialogTitle className="text-lg font-bold flex items-center gap-2 text-primary">
                   <CheckCircle2 className="h-5 w-5 text-emerald-600" />
@@ -3188,7 +3187,7 @@ function LedgerPage() {
 
       {/* Attachment Dialog */}
       <Dialog open={isAttachmentOpen} onOpenChange={setIsAttachmentOpen}>
-        <DialogContent className="sm:max-w-[500px] text-right dir-rtl">
+        <DialogContent className="sm:max-w-[500px] text-right">
           <DialogHeader>
             <DialogTitle>
               مرفقات القيد {attachmentJournalId.substring(3, 10).toUpperCase()}
@@ -3264,7 +3263,7 @@ function LedgerPage() {
 
       {/* View Document Dialog */}
       <Dialog open={isViewJournalOpen} onOpenChange={setIsViewJournalOpen}>
-        <DialogContent className="sm:max-w-[760px] max-h-[90vh] overflow-y-auto text-right dir-rtl print:max-w-none print:w-full print:h-full print:m-0 print:border-none print:shadow-none bg-card">
+        <DialogContent className="sm:max-w-[760px] max-h-[90vh] overflow-y-auto text-right print:max-w-none print:w-full print:h-full print:m-0 print:border-none print:shadow-none bg-card">
           <DialogHeader className="print:hidden">
             <DialogTitle className="text-lg font-bold text-right">
               سند قيد يومية عامة (محاسبي)
@@ -3304,10 +3303,7 @@ function LedgerPage() {
                 : Math.abs(totalBaseDebit - totalBaseCredit);
 
               return (
-                <div
-                  className="p-6 bg-white dark:bg-zinc-900 text-foreground space-y-6 rounded-xl border print:border-none print:p-0"
-                  dir="rtl"
-                >
+                <div className="p-6 bg-white dark:bg-zinc-900 text-foreground space-y-6 rounded-xl border print:border-none print:p-0">
                   {/* Header */}
                   <div className="flex flex-row justify-between items-start border-b pb-4">
                     <div className="space-y-1">
@@ -3802,7 +3798,7 @@ function LedgerPage() {
         open={Boolean(balanceAdjustmentEntry)}
         onOpenChange={(open) => !open && setBalanceAdjustmentEntry(null)}
       >
-        <AlertDialogContent className="rounded-2xl max-w-lg" dir="rtl">
+        <AlertDialogContent className="rounded-2xl max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-right flex items-center gap-2 text-amber-700 dark:text-amber-400">
               <Scale className="h-5 w-5" />
@@ -3852,7 +3848,7 @@ function LedgerPage() {
 
       {/* Save Confirmation Dialog */}
       <AlertDialog open={isSaveConfirmOpen} onOpenChange={setIsSaveConfirmOpen}>
-        <AlertDialogContent className="rounded-2xl max-w-lg" dir="rtl">
+        <AlertDialogContent className="rounded-2xl max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-right flex items-center gap-2 text-emerald-700 dark:text-emerald-400 text-lg font-bold">
               <Database className="h-5 w-5 text-emerald-600" />
@@ -3902,7 +3898,7 @@ function LedgerPage() {
 
       {/* Save Success and Detailed Report Dialog */}
       <Dialog open={isSaveReportOpen} onOpenChange={setIsSaveReportOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl" dir="rtl">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl">
           <DialogHeader className="text-right">
             <DialogTitle className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 text-xl font-bold">
               <CheckCircle2 className="h-6 w-6 text-emerald-600" />
@@ -4185,7 +4181,7 @@ function LedgerPage() {
 
       {/* Delete Single Journal Entry Confirmation Dialog */}
       <AlertDialog open={isDeleteSingleOpen} onOpenChange={setIsDeleteSingleOpen}>
-        <AlertDialogContent className="rounded-2xl text-right dir-rtl">
+        <AlertDialogContent className="rounded-2xl text-right">
           <AlertDialogHeader className="text-right">
             <AlertDialogTitle className="text-right flex items-center gap-2 text-rose-600">
               <Trash2 className="h-5 w-5 text-rose-600" />
@@ -4221,7 +4217,7 @@ function LedgerPage() {
 
       {/* Closed Year / Period Alert Dialog */}
       <AlertDialog open={isClosedYearAlertOpen} onOpenChange={setIsClosedYearAlertOpen}>
-        <AlertDialogContent className="rounded-2xl text-right dir-rtl max-w-lg border-amber-300 dark:border-amber-700">
+        <AlertDialogContent className="rounded-2xl text-right max-w-lg border-amber-300 dark:border-amber-700">
           <AlertDialogHeader className="text-right">
             <AlertDialogTitle className="text-right flex items-center gap-2 text-amber-600 dark:text-amber-400 text-lg font-bold">
               <Lock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
@@ -4258,7 +4254,7 @@ function LedgerPage() {
 
       {/* Edit Journal Entry Dialog */}
       <Dialog open={isEditEntryOpen} onOpenChange={setIsEditEntryOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" dir="rtl">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader className="text-right">
             <DialogTitle className="text-lg font-bold flex items-center gap-2 text-primary">
               <Edit className="h-5 w-5 text-primary" />
@@ -4410,7 +4406,7 @@ function LedgerPage() {
 
                       {/* Exchange Rate / Factor */}
                       <div className="md:col-span-2 space-y-1">
-                        <Label className="text-xs font-semibold">المعامل / الصرف</Label>
+                        <Label className="text-xs font-semibold">Rate (المعامل)</Label>
                         <Input
                           type="number"
                           min="0.0001"

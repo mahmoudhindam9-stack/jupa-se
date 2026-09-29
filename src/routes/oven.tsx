@@ -218,7 +218,7 @@ function OvenPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-cairo" dir="rtl">
+    <div className="min-h-screen bg-slate-50 font-cairo">
       <div className="max-w-7xl mx-auto w-full px-4 pt-4">
         <BackToRestaurantButton />
       </div>
@@ -259,7 +259,7 @@ function OvenPage() {
                   حذف جميع الطلبات
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogContent className="rounded-3xl font-cairo text-right" dir="rtl">
+              <AlertDialogContent className="rounded-3xl font-cairo text-right">
                 <AlertDialogHeader>
                   <AlertDialogTitle className="font-black text-right">
                     هل أنت متأكد من حذف جميع الطلبات؟
@@ -457,7 +457,7 @@ function OvenPage() {
       {/* Edit Order Modal */}
       {editingOrder && (
         <Dialog open={!!editingOrder} onOpenChange={(open) => !open && setEditingOrder(null)}>
-          <DialogContent className="max-w-md text-right rounded-3xl font-cairo" dir="rtl">
+          <DialogContent className="max-w-md text-right rounded-3xl font-cairo">
             <DialogHeader>
               <DialogTitle className="text-right text-lg font-black block border-b border-border/40 pb-2">
                 تعديل الطلب #{String(editingOrder.order_number || editingOrder.id).slice(-6)}

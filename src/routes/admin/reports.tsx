@@ -722,7 +722,7 @@ function ReportsPage() {
     }
 
     const fullHtml = `<!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar">
 <head>
   <meta charset="utf-8" />
   <title>${title}</title>
@@ -761,7 +761,7 @@ function ReportsPage() {
   };
 
   return (
-    <div className="space-y-6 pb-12 text-right print:p-0" dir="rtl">
+    <div className="space-y-6 pb-12 text-right print:p-0">
       {/* Title block */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-5 print:hidden">
         <div>

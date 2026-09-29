@@ -192,7 +192,7 @@ export function InternalTransfer() {
   };
 
   return (
-    <div className="space-y-6 text-right" dir="rtl">
+    <div className="space-y-6 text-right">
       <Card className="border border-border/60 shadow-sm rounded-2xl max-w-4xl mx-auto">
         <CardHeader>
           <CardTitle className="text-xl font-black flex items-center gap-2">
@@ -434,7 +434,7 @@ export function InternalTransfer() {
 
       {/* Confirmation Alert Dialog */}
       <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
-        <AlertDialogContent className="text-right dir-rtl">
+        <AlertDialogContent className="text-right">
           <AlertDialogHeader className="text-right">
             <AlertDialogTitle className="flex items-center gap-2">
               <CheckCircle className="text-emerald-500" size={20} />
@@ -483,7 +483,7 @@ export function InternalTransfer() {
 
       {/* View Document Dialog */}
       <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
-        <DialogContent className="sm:max-w-[600px] text-right dir-rtl print:max-w-none print:w-full print:h-full print:m-0 print:border-none print:shadow-none">
+        <DialogContent className="sm:max-w-[600px] text-right print:max-w-none print:w-full print:h-full print:m-0 print:border-none print:shadow-none">
           <DialogHeader className="print:hidden">
             <DialogTitle>مستند تحويل مخزني</DialogTitle>
           </DialogHeader>

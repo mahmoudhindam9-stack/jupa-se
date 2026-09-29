@@ -243,7 +243,9 @@ function AccountsPage() {
 
               const rowCurrency = String(
                 row["العملة"] || row["Currency"] || row["currency"] || row["curr"] || "EGP",
-              ).trim().toUpperCase();
+              )
+                .trim()
+                .toUpperCase();
 
               allAccounts.push({
                 code,
@@ -279,9 +281,9 @@ function AccountsPage() {
             row["حساب الدائن"] || row["Credit Account"] || row["credit_code"] || "201000",
           );
           const amount = Number(row["المبلغ"] || row["Amount"] || row["amount"] || 0);
-          const txCurrency = String(
-            row["العملة"] || row["Currency"] || row["currency"] || "EGP",
-          ).trim().toUpperCase();
+          const txCurrency = String(row["العملة"] || row["Currency"] || row["currency"] || "EGP")
+            .trim()
+            .toUpperCase();
 
           if (amount > 0) {
             allEntries.push({
@@ -296,7 +298,12 @@ function AccountsPage() {
               created_at: new Date().toISOString(),
               lines: [
                 { account_code: debitAcc, debit: amount, credit: 0, currency: txCurrency || "EGP" },
-                { account_code: creditAcc, debit: 0, credit: amount, currency: txCurrency || "EGP" },
+                {
+                  account_code: creditAcc,
+                  debit: 0,
+                  credit: amount,
+                  currency: txCurrency || "EGP",
+                },
               ],
             });
           }
@@ -565,7 +572,7 @@ function AccountsPage() {
   }, [selectedAccountForLedger]);
 
   return (
-    <div className="space-y-6 pb-12" dir="rtl">
+    <div className="space-y-6 pb-12">
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden">
         <div className="absolute -left-10 -top-10 w-48 h-48 bg-primary/20 rounded-full blur-3xl pointer-events-none" />
@@ -1120,7 +1127,7 @@ function AccountsPage() {
 
           {/* DIALOG 1: ADD ACCOUNT */}
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-            <DialogContent className="max-w-md dir-rtl text-right rounded-2xl" dir="rtl">
+            <DialogContent className="max-w-md text-right rounded-2xl">
               <DialogHeader className="text-right">
                 <DialogTitle className="text-lg font-black text-foreground flex items-center gap-2">
                   <Plus className="text-primary" size={20} />
@@ -1314,7 +1321,7 @@ function AccountsPage() {
 
           {/* DIALOG 2: EDIT ACCOUNT */}
           <Dialog open={!!editingAccount} onOpenChange={(open) => !open && setEditingAccount(null)}>
-            <DialogContent className="max-w-md dir-rtl text-right rounded-2xl" dir="rtl">
+            <DialogContent className="max-w-md text-right rounded-2xl">
               <DialogHeader className="text-right">
                 <DialogTitle className="text-lg font-black text-foreground flex items-center gap-2">
                   <Pencil className="text-primary" size={20} />
@@ -1522,7 +1529,7 @@ function AccountsPage() {
             open={!!accountToDelete}
             onOpenChange={(open) => !open && setAccountToDelete(null)}
           >
-            <DialogContent className="max-w-md dir-rtl text-right rounded-2xl" dir="rtl">
+            <DialogContent className="max-w-md text-right rounded-2xl">
               <DialogHeader className="text-right">
                 <DialogTitle className="text-lg font-black text-rose-600 flex items-center gap-2">
                   <Trash2 size={20} />
@@ -1565,10 +1572,7 @@ function AccountsPage() {
             open={!!selectedAccountForLedger}
             onOpenChange={(open) => !open && setSelectedAccountForLedger(null)}
           >
-            <DialogContent
-              className="max-w-3xl dir-rtl text-right rounded-2xl max-h-[85vh] overflow-y-auto"
-              dir="rtl"
-            >
+            <DialogContent className="max-w-3xl text-right rounded-2xl max-h-[85vh] overflow-y-auto">
               <DialogHeader className="text-right border-b border-border pb-3">
                 <div className="flex items-center justify-between">
                   <div>
@@ -1660,7 +1664,7 @@ function AccountsPage() {
 
           {/* ORACLE MIGRATION IMPORT DIALOG */}
           <Dialog open={isOracleImportOpen} onOpenChange={setIsOracleImportOpen}>
-            <DialogContent className="max-w-2xl dir-rtl text-right rounded-2xl" dir="rtl">
+            <DialogContent className="max-w-2xl text-right rounded-2xl">
               <DialogHeader className="text-right border-b border-border pb-3">
                 <DialogTitle className="text-xl font-black text-foreground flex items-center gap-2">
                   <FileSpreadsheet className="text-amber-600" size={24} />

@@ -281,7 +281,7 @@ export function PurchaseManagement() {
   };
 
   return (
-    <div className="space-y-6 text-right" dir="rtl">
+    <div className="space-y-6 text-right">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* PO Creation Form */}
         <Card className="lg:col-span-2 border border-border/60 shadow-sm rounded-2xl">
@@ -632,7 +632,7 @@ export function PurchaseManagement() {
 
       {/* Confirmation Dialog */}
       <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
-        <AlertDialogContent className="max-w-md text-right rounded-2xl" dir="rtl">
+        <AlertDialogContent className="max-w-md text-right rounded-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-lg font-black flex items-center gap-2">
               <CheckCircle className="text-emerald-500" size={20} />

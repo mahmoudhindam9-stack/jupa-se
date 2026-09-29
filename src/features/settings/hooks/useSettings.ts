@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { translator } from "@/shared/services/translationService";
 
 export type Currency = "EGP" | "USD" | "SSP";
 export type Language = "ar" | "en";
@@ -100,11 +101,22 @@ export function useSettings(overridePageKey?: string) {
       }
     };
 
+    const handleLangChange = (e: any) => {
+      const newLang = e?.detail?.lang;
+      if (newLang) {
+        setLang(newLang);
+      } else {
+        loadSettings();
+      }
+    };
+
     window.addEventListener("app_currency_changed" as any, handleCustomEvent);
+    window.addEventListener("app_lang_changed" as any, handleLangChange);
     window.addEventListener("storage", handleStorageChange);
 
     return () => {
       window.removeEventListener("app_currency_changed" as any, handleCustomEvent);
+      window.removeEventListener("app_lang_changed" as any, handleLangChange);
       window.removeEventListener("storage", handleStorageChange);
     };
   }, [loadSettings, overridePageKey]);
@@ -113,6 +125,10 @@ export function useSettings(overridePageKey?: string) {
     setLang(newLang);
     if (typeof localStorage !== "undefined") {
       localStorage.setItem("app_lang", newLang);
+      document.documentElement.lang = newLang;
+      document.documentElement.dir = newLang === "ar" ? "rtl" : "ltr";
+      translator.setLanguage(newLang);
+      window.dispatchEvent(new CustomEvent("app_lang_changed", { detail: { lang: newLang } }));
     }
   };
 

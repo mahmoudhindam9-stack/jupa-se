@@ -69,17 +69,13 @@ function SetupPage() {
   };
 
   if (adminCount === null) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" dir="rtl">
-        جاري التحميل…
-      </div>
-    );
+    return <div className="min-h-screen flex items-center justify-center">جاري التحميل…</div>;
   }
 
   if (adminCount > 0) return null;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4" dir="rtl">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm space-y-6 bg-card border border-border p-6 rounded-2xl">
         <h1 className="text-2xl font-black text-center">إعداد أول حساب مدير</h1>
         <p className="text-sm text-muted-foreground text-center">

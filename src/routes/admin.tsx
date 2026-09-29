@@ -28,8 +28,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { RestocashLogo } from "@/components/RestocashLogo";
 import { CurrencySwitcher } from "@/components/CurrencySwitcher";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { CURRENT_VERSION } from "@/shared/config/version";
+import { GitHubUpdateBanner } from "@/components/admin/GitHubUpdateBanner";
 
 export const Route = createFileRoute("/admin")({
   head: () => ({ meta: [{ title: "لوحة الإدارة" }] }),
@@ -64,16 +67,19 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
+
     async function checkAuth() {
-      const localUser = localStorage.getItem("restocash_auth_user");
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const localUser =
+        localStorage.getItem("restocash_auth_user") ||
+        sessionStorage.getItem("restocash_auth_user");
 
       try {
         const {
           data: { session },
         } = await supabase.auth.getSession();
+
+        if (!isMounted) return;
 
         if (session?.user?.email) {
           setUser({ email: session.user.email });
@@ -85,6 +91,7 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
         }
       } catch (error) {
         console.error("Restocash auth check failed:", error);
+        if (!isMounted) return;
         if (localUser) {
           setUser({ email: localUser });
         } else {
@@ -92,15 +99,20 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
           return;
         }
       } finally {
-        setAuthChecking(false);
+        if (isMounted) {
+          setAuthChecking(false);
+        }
       }
     }
 
-    const localUser = localStorage.getItem("restocash_auth_user");
     checkAuth();
 
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      const localUser = localStorage.getItem("restocash_auth_user");
+      if (!isMounted) return;
+      const localUser =
+        localStorage.getItem("restocash_auth_user") ||
+        sessionStorage.getItem("restocash_auth_user");
+
       if (session?.user?.email) {
         setUser({ email: session.user.email });
       } else if (localUser) {
@@ -111,16 +123,19 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
     });
 
     return () => {
-      authListener.subscription.unsubscribe();
+      isMounted = false;
+      authListener?.subscription?.unsubscribe();
     };
   }, [navigate]);
 
   const handleSignOut = async () => {
     localStorage.removeItem("restocash_auth_user");
     localStorage.removeItem("restocash_user_role");
+    sessionStorage.removeItem("restocash_auth_user");
+    sessionStorage.removeItem("restocash_user_role");
     try {
       await supabase.auth.signOut();
-    } catch (e) {
+    } catch {
       // ignore
     }
     setUser(null);
@@ -129,7 +144,7 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
 
   if (authChecking) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-6" dir="rtl">
+      <div className="min-h-screen flex items-center justify-center bg-background p-6">
         <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 text-center shadow-sm">
           <RestocashLogo size={32} />
           <p className="mt-4 text-sm font-bold text-foreground">جاري التحقق من جلسة الدخول…</p>
@@ -214,18 +229,39 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
           الرئيسية
         </Link>
 
-        <div className="pt-2 border-t border-border/60 space-y-1">
-          <span className="px-1 text-[11px] font-bold text-muted-foreground block">
-            عملة عرض اللوحة:
-          </span>
-          <CurrencySwitcher compact className="w-full justify-between" />
+        <div className="pt-2 border-t border-border/60 space-y-2">
+          <div className="space-y-1">
+            <span className="px-1 text-[11px] font-bold text-muted-foreground block">
+              لغة التطبيق:
+            </span>
+            <LanguageSwitcher compact />
+          </div>
+          <div className="space-y-1">
+            <span className="px-1 text-[11px] font-bold text-muted-foreground block">
+              عملة عرض اللوحة:
+            </span>
+            <CurrencySwitcher compact className="w-full justify-between" />
+          </div>
+        </div>
+
+        {/* System Version & Update Status */}
+        <div className="pt-2 border-t border-border/60 flex items-center justify-between text-[11px] text-muted-foreground px-1">
+          <Link
+            to="/admin/system-update"
+            className="flex items-center gap-1.5 hover:text-foreground transition font-medium"
+            title="انتقل إلى صفحة خيارات المطور والتحديثات"
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
+            <span>الإصدار: v{CURRENT_VERSION}</span>
+          </Link>
+          <span className="text-[10px] text-muted-foreground/70">GitHub Sync</span>
         </div>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen flex bg-background" dir="rtl">
+    <div className="min-h-screen flex bg-background">
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-64 shrink-0 border-l border-border bg-card flex-col h-screen sticky top-0">
         {renderSidebarNav()}
@@ -233,13 +269,16 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
 
       {/* Mobile Drawer Navigation (Sheet) */}
       <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-        <SheetContent side="right" className="w-[280px] p-0 border-l border-border bg-card dir-rtl">
+        <SheetContent side="right" className="w-[280px] p-0 border-l border-border bg-card">
           {renderSidebarNav(() => setIsMobileMenuOpen(false))}
         </SheetContent>
       </Sheet>
 
       <main className="flex-1 flex flex-col min-w-0 overflow-auto">
-        {/* Admin Header with Page Title, Mobile Toggle, and Currency Switcher */}
+        {/* GitHub Auto-Update Notification Banner */}
+        <GitHubUpdateBanner />
+
+        {/* Admin Header with Page Title, Mobile Toggle, and Currency/Language Switcher */}
         <header className="sticky top-0 z-20 bg-card/95 backdrop-blur border-b border-border px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
             {/* Mobile Sidebar Toggle Icon Button */}
@@ -259,7 +298,10 @@ export function AdminLayout({ children }: { children?: ReactNode }) {
               | نظام إدارة المطاعم والمحاسبة ERP
             </span>
           </div>
-          <CurrencySwitcher />
+          <div className="flex items-center gap-2">
+            <LanguageSwitcher />
+            <CurrencySwitcher />
+          </div>
         </header>
         <div className="p-4 sm:p-6 flex-1">{children || <Outlet />}</div>
       </main>

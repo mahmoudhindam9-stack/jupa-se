@@ -2,7 +2,6 @@ import { defineConfig } from "vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import netlify from "@netlify/vite-plugin-tanstack-start";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -19,7 +18,6 @@ export default defineConfig({
     }),
     react(),
     tailwindcss(),
-    process.env.NODE_ENV === "production" ? netlify() : null,
   ],
   resolve: {
     tsconfigPaths: true,

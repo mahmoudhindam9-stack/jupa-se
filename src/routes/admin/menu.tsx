@@ -42,6 +42,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { menuService } from "@/features/menu/services/menuService";
 import { inventoryService } from "@/features/inventory/services/inventoryService";
 import { erpStore, MenuItemQualitySpecs } from "@/shared/services/erpStore";
@@ -97,6 +105,9 @@ function MenuPage() {
     additions: [],
   });
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  const [isItemModalOpen, setIsItemModalOpen] = useState(false);
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   const [qualityForm, setQualityForm] = useState<Partial<MenuItemQualitySpecs>>({
     shelf_life_hours: 24,
@@ -207,6 +218,9 @@ function MenuPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "menu_items"] });
+      setIsItemModalOpen(false);
+      setShowSaveConfirm(false);
+      setShowCancelConfirm(false);
       setEditingItem(null);
       setItemForm({
         name_ar: "",
@@ -225,6 +239,12 @@ function MenuPage() {
       });
       setSelectedInventoryId("");
       setIngredientWeight("");
+      toast({
+        title: "✅ تم الحفظ بنجاح",
+        description: editingItem
+          ? "تم تحديث بيانات الصنف بنجاح!"
+          : "تمت إضافة الصنف إلى المنيو بنجاح!",
+      });
     },
   });
 
@@ -259,6 +279,31 @@ function MenuPage() {
     },
   });
 
+  const openAddModal = () => {
+    setEditingItem(null);
+    setItemForm({
+      name_ar: "",
+      price: 0,
+      category_id: activeCategory !== "all" ? activeCategory : "",
+      image_url: "",
+      is_available: true,
+      requires_oven: false,
+      ingredients: [],
+      inventory_tracking: "not_tracked",
+      badge: "",
+      additions: [],
+    });
+    setQualityForm({
+      shelf_life_hours: 24,
+      storage_condition_label: "4°م ثلاجة مبردة",
+      allergens: [],
+      quality_checklist: ["فحص الطزاجة والرائحة", "التأكد من التغليف المانع للتلوث"],
+    });
+    setSelectedInventoryId("");
+    setIngredientWeight("");
+    setIsItemModalOpen(true);
+  };
+
   const startEditItem = (item: MenuItem) => {
     setEditingItem(item);
     setItemForm({
@@ -279,7 +324,7 @@ function MenuPage() {
         quality_checklist: ["فحص الطزاجة والرائحة", "التأكد من التغليف المانع للتلوث"],
       });
     }
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setIsItemModalOpen(true);
   };
 
   const cancelEditItem = () => {
@@ -352,7 +397,7 @@ function MenuPage() {
   }, [itemForm.ingredients, itemForm.price, inventoryQuery.data]);
 
   return (
-    <div className="space-y-6 text-right" dir="rtl">
+    <div className="space-y-6 text-right">
       <BackToRestaurantButton />
       <div className="flex items-center justify-between">
         <div>
@@ -485,622 +530,6 @@ function MenuPage() {
         </TabsContent>
 
         <TabsContent value="items" className="space-y-5 mt-4">
-          {/* Add / Edit Menu Item Block */}
-          <div className="bg-card border border-border p-5 rounded-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-border/40 pb-3">
-              <h2 className="font-black text-lg text-primary flex items-center gap-2">
-                <ChefHat size={18} />
-                {editingItem
-                  ? `تعديل الصنف: ${editingItem.name_ar}`
-                  : "إضافة صنف مأكولات أو مشروب جديد"}
-              </h2>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Left column: main inputs */}
-              <div className="lg:col-span-2 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-xs font-bold">اسم الصنف بالكامل</Label>
-                    <Input
-                      className="mt-1.5"
-                      value={itemForm.name_ar || ""}
-                      onChange={(e) => setItemForm((s) => ({ ...s, name_ar: e.target.value }))}
-                      placeholder="مثال: بيتزا بيبروني سوبريم"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs font-bold">سعر البيع المقترح للمستهلك (ج.م)</Label>
-                    <Input
-                      className="mt-1.5"
-                      type="number"
-                      value={itemForm.price || ""}
-                      onChange={(e) =>
-                        setItemForm((s) => ({ ...s, price: Number(e.target.value) }))
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs font-bold">فئة المنيو</Label>
-                    <select
-                      className="w-full mt-1.5 h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary text-right"
-                      value={itemForm.category_id || ""}
-                      onChange={(e) => setItemForm((s) => ({ ...s, category_id: e.target.value }))}
-                    >
-                      <option value="">اختر الفئة المناسبة</option>
-                      {(categoriesQuery.data ?? []).map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name_ar}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <Label className="text-xs font-bold">شعار أو لافتة المنتج (اختياري)</Label>
-                    <Input
-                      className="mt-1.5 h-9 text-xs"
-                      type="text"
-                      value={itemForm.badge || ""}
-                      onChange={(e) => setItemForm((s) => ({ ...s, badge: e.target.value }))}
-                      placeholder="مثال: خصم خاص، الأكثر طلباً، عرض جديد"
-                    />
-                    <div className="flex flex-wrap gap-1 mt-1.5">
-                      {["🔥 الأكثر طلباً", "✨ عرض جديد", "🏷️ خصم خاص", "⭐ مميز", "👑 الشيف"].map(
-                        (preset) => (
-                          <button
-                            key={preset}
-                            type="button"
-                            onClick={() => setItemForm((s) => ({ ...s, badge: preset }))}
-                            className="text-[10px] bg-muted hover:bg-primary/10 text-foreground px-2 py-0.5 rounded-md border border-border transition font-medium cursor-pointer"
-                          >
-                            {preset}
-                          </button>
-                        ),
-                      )}
-                      {itemForm.badge && (
-                        <button
-                          type="button"
-                          onClick={() => setItemForm((s) => ({ ...s, badge: "" }))}
-                          className="text-[10px] bg-destructive/10 text-destructive px-2 py-0.5 rounded-md font-bold cursor-pointer"
-                        >
-                          إزالة
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label className="text-xs font-bold">وضع تتبع المخزون</Label>
-                    <select
-                      className="w-full mt-1.5 h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary text-right"
-                      value={itemForm.inventory_tracking || "not_tracked"}
-                      onChange={(e) =>
-                        setItemForm((s) => ({ ...s, inventory_tracking: e.target.value }))
-                      }
-                    >
-                      <option value="not_tracked">
-                        لا يتطلب تتبع مخزون (مثل علب البيبسي/العصائر)
-                      </option>
-                      <option value="recipe_required">
-                        يتطلب وجود مكونات ووصفة (خصم تلقائي عند التحضير)
-                      </option>
-                    </select>
-                  </div>
-
-                  {/* File / URL Upload inputs */}
-                  <div>
-                    <Label className="text-xs font-bold">رابط صورة الصنف (أو ارفع صورة)</Label>
-                    <div className="flex gap-2 items-center mt-1.5">
-                      <Input
-                        value={itemForm.image_url || ""}
-                        onChange={(e) => setItemForm((s) => ({ ...s, image_url: e.target.value }))}
-                        placeholder="https://example.com/food.jpg"
-                        className="flex-1 text-left"
-                        dir="ltr"
-                      />
-                      <label className="cursor-pointer inline-flex items-center justify-center gap-1 rounded-md text-xs font-semibold h-9 px-3 border border-dashed border-primary text-primary hover:bg-primary/5 transition shrink-0 bg-background">
-                        <Upload size={12} />
-                        <span>رفع</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleImageFileChange}
-                          className="hidden"
-                        />
-                      </label>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-6 pt-2 border-t border-border/40">
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      id="available"
-                      checked={!!itemForm.is_available}
-                      onCheckedChange={(v) => setItemForm((s) => ({ ...s, is_available: v }))}
-                    />
-                    <Label htmlFor="available" className="text-xs font-bold cursor-pointer">
-                      متاح حالياً للطلب الفوري
-                    </Label>
-                  </div>
-
-                  <div className="flex items-center gap-2 bg-orange-50 border border-orange-200 px-3 py-1.5 rounded-lg">
-                    <Switch
-                      id="requires_oven"
-                      checked={!!itemForm.requires_oven}
-                      onCheckedChange={(v) => setItemForm((s) => ({ ...s, requires_oven: v }))}
-                    />
-                    <Label
-                      htmlFor="requires_oven"
-                      className="text-xs font-bold cursor-pointer text-orange-800 flex items-center gap-1"
-                    >
-                      <span>يتطلب تحضير في الفرن (شاشة الفرن / KDS) 🍕</span>
-                    </Label>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right column: Image Form Preview */}
-              <div className="flex flex-col justify-center items-center bg-muted/40 rounded-2xl p-4 border border-dashed border-border text-center">
-                <span className="text-xs font-bold text-muted-foreground block mb-3">
-                  معاينة الصورة
-                </span>
-                {itemForm.image_url ? (
-                  <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden border border-border">
-                    <img
-                      src={itemForm.image_url}
-                      alt="Preview"
-                      className="w-full h-full object-cover"
-                    />
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      className="absolute bottom-2 right-2 text-[10px] h-6 px-2"
-                      onClick={() => setItemForm((s) => ({ ...s, image_url: "" }))}
-                    >
-                      إزالة الصورة
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="w-full aspect-[4/3] flex flex-col items-center justify-center bg-background/50 rounded-xl text-muted-foreground">
-                    <ImageIcon size={32} className="opacity-30 mb-1" />
-                    <span className="text-[10px]">لا توجد صورة مضافة</span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Recipe Ingredients builder section */}
-            <div className="border-t border-border/40 pt-5 mt-2">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-3">
-                <div>
-                  <Label className="text-sm font-black text-primary block">
-                    مكونات الوصفة (تُخصم تلقائياً من كميات المخزن عند البيع)
-                  </Label>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    اربط الصنف بمواده الخام للتحكم الحقيقي الفوري بالهدر والمخزن
-                  </p>
-                </div>
-
-                {/* dynamic Recipe pricing stats preview */}
-                {itemForm.price ? (
-                  <div className="flex items-center gap-3 text-xs bg-muted/60 px-4 py-2 rounded-xl border border-border">
-                    <div>
-                      <span className="text-muted-foreground text-[10px] block">
-                        تكلفة المكونات:
-                      </span>
-                      <span className="font-bold text-foreground">
-                        {recipeStats.cost.toFixed(2)} ج.م
-                      </span>
-                    </div>
-                    <div className="h-6 w-px bg-border" />
-                    <div>
-                      <span className="text-muted-foreground text-[10px] block">
-                        هامش الربح الفعلي:
-                      </span>
-                      <span
-                        className={`font-black ${recipeStats.profit >= 0 ? "text-emerald-600" : "text-destructive"}`}
-                      >
-                        {recipeStats.profit.toFixed(2)} ج.م ({recipeStats.margin.toFixed(0)}%)
-                      </span>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="bg-muted/40 p-4 rounded-2xl border border-dashed border-border mb-4 space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                  <div>
-                    <Label className="text-xs font-bold text-primary flex items-center gap-1">
-                      <Building2 size={13} />
-                      المخزن الفرعي المستهدف
-                    </Label>
-                    <select
-                      className="w-full mt-1.5 h-9 rounded-md border border-input bg-background px-3 text-xs focus:outline-none text-right font-bold"
-                      value={selectedRecipeWarehouseId}
-                      onChange={(e) => setSelectedRecipeWarehouseId(e.target.value)}
-                    >
-                      <option value="all">جميع المخازن (رصيد مجمع)</option>
-                      {(warehousesQuery.data ?? []).map((wh) => (
-                        <option key={wh.id} value={wh.id}>
-                          {wh.name} {wh.is_default ? "(رئيسي)" : "(فرعي)"}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <Label className="text-xs font-bold">اختر صنفاً من المخزن لتضمينه</Label>
-                    <select
-                      className="w-full mt-1.5 h-9 rounded-md border border-input bg-background px-3 text-xs focus:outline-none text-right font-bold"
-                      value={selectedInventoryId}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setSelectedInventoryId(val);
-                        const inv = inventoryQuery.data?.find((i: any) => i.id === val);
-                        if (inv) {
-                          setIngredientUnit(inv.unit);
-                        }
-                      }}
-                    >
-                      <option value="">اختر المادة الخام...</option>
-                      {(inventoryQuery.data ?? []).map((inv: any) => {
-                        let stock = Number(inv.quantity || 0);
-                        if (selectedRecipeWarehouseId !== "all") {
-                          const whRec = (warehouseInventoryQuery.data ?? []).find(
-                            (w: any) =>
-                              w.warehouse_id === selectedRecipeWarehouseId &&
-                              w.inventory_id === inv.id,
-                          );
-                          stock = Number(whRec?.quantity || 0);
-                        }
-                        return (
-                          <option key={inv.id} value={inv.id}>
-                            {inv.name_ar} (متوفر: {stock.toFixed(2)} {inv.unit})
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-
-                  <div>
-                    <Label className="text-xs font-bold">الوزن / الكمية المطلوبة للوجبة</Label>
-                    <Input
-                      type="number"
-                      step="any"
-                      placeholder="مثال: 0.150 للمية وخمسين جرام"
-                      value={ingredientWeight}
-                      onChange={(e) => setIngredientWeight(e.target.value)}
-                      className="h-9 text-xs mt-1.5 font-bold"
-                    />
-                  </div>
-
-                  <div>
-                    <Label className="text-xs font-bold">الوحدة بالوصفة</Label>
-                    <select
-                      className="w-full mt-1.5 h-9 rounded-md border border-input bg-background px-3 text-xs focus:outline-none text-right font-bold"
-                      value={ingredientUnit}
-                      onChange={(e) => setIngredientUnit(e.target.value)}
-                    >
-                      <option value="">اختر الوحدة</option>
-                      <option value="g">جرام (g)</option>
-                      <option value="kg">كيلوجرام (kg)</option>
-                      <option value="ml">مليلتر (ml)</option>
-                      <option value="l">لتر (l)</option>
-                      <option value="pcs">قطعة (pcs)</option>
-                      <option value="box">علبة (box)</option>
-                      <option value="pack">عبوة (pack)</option>
-                      <option value="bottle">زجاجة (bottle)</option>
-                      <option value="can">كان (can)</option>
-                    </select>
-                  </div>
-                </div>
-
-                {selectedInventoryId &&
-                  (() => {
-                    const inv = (inventoryQuery.data ?? []).find(
-                      (i: any) => i.id === selectedInventoryId,
-                    );
-                    if (!inv) return null;
-                    let stock = Number(inv.quantity || 0);
-                    let whName = "جميع المخازن";
-                    if (selectedRecipeWarehouseId !== "all") {
-                      const wh = (warehousesQuery.data ?? []).find(
-                        (w) => w.id === selectedRecipeWarehouseId,
-                      );
-                      whName = wh ? wh.name : "المخزن المحدد";
-                      const whRec = (warehouseInventoryQuery.data ?? []).find(
-                        (w: any) =>
-                          w.warehouse_id === selectedRecipeWarehouseId && w.inventory_id === inv.id,
-                      );
-                      stock = Number(whRec?.quantity || 0);
-                    }
-                    return (
-                      <div className="bg-primary/10 border border-primary/20 p-2.5 rounded-xl flex flex-wrap items-center justify-between text-xs font-bold gap-2">
-                        <span className="text-foreground flex items-center gap-1.5">
-                          <Sparkles size={14} className="text-primary" />
-                          الصنف المختار: <span className="text-primary">{inv.name_ar}</span>
-                        </span>
-                        <div className="flex items-center gap-3">
-                          <span className="text-muted-foreground">
-                            سعر الشراء:{" "}
-                            <span className="text-foreground">
-                              {Number(inv.cost || 0).toFixed(2)} ج.م/{inv.unit}
-                            </span>
-                          </span>
-                          <span className="bg-primary text-primary-foreground px-2.5 py-0.5 rounded-lg text-[11px]">
-                            الرصيد المتاح بـ ({whName}): {stock.toFixed(2)} {inv.unit}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 items-center pt-2">
-                  <div>
-                    <Label className="text-xs font-bold">نسبة الهدر المتوقعة (%)</Label>
-                    <Input
-                      type="number"
-                      placeholder="مثال: 5 لنسبة 5%"
-                      value={ingredientWastePercent}
-                      onChange={(e) => setIngredientWastePercent(e.target.value)}
-                      className="h-9 text-xs mt-1.5"
-                    />
-                  </div>
-
-                  <div>
-                    <Label className="text-xs font-bold">ملاحظات / تعليمات المكون</Label>
-                    <Input
-                      type="text"
-                      placeholder="مثال: مفروم ناعم"
-                      value={ingredientNotes}
-                      onChange={(e) => setIngredientNotes(e.target.value)}
-                      className="h-9 text-xs mt-1.5"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between bg-background border border-input h-9 px-3 rounded-lg mt-5">
-                    <Label
-                      htmlFor="optional-ingredient"
-                      className="text-xs font-bold cursor-pointer"
-                    >
-                      مكون اختياري
-                    </Label>
-                    <Switch
-                      id="optional-ingredient"
-                      checked={ingredientOptional}
-                      onCheckedChange={setIngredientOptional}
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full h-9 bg-background hover:bg-muted text-xs font-bold"
-                    onClick={() => {
-                      if (!selectedInventoryId || !ingredientWeight) return;
-                      const weightNum = Number(ingredientWeight);
-                      if (isNaN(weightNum) || weightNum <= 0) return;
-
-                      const wasteNum = Number(ingredientWastePercent) || undefined;
-
-                      const currentIngredients = itemForm.ingredients || [];
-                      const existingIdx = currentIngredients.findIndex(
-                        (ing) => ing.inventory_id === selectedInventoryId,
-                      );
-
-                      const newIngredientItem: MenuItemIngredient = {
-                        inventory_id: selectedInventoryId,
-                        weight: weightNum,
-                        unit: ingredientUnit || undefined,
-                        optional: ingredientOptional || undefined,
-                        waste_percent: wasteNum,
-                        notes: ingredientNotes || undefined,
-                      };
-
-                      let updated: MenuItemIngredient[];
-                      if (existingIdx > -1) {
-                        updated = [...currentIngredients];
-                        updated[existingIdx] = newIngredientItem;
-                      } else {
-                        updated = [...currentIngredients, newIngredientItem];
-                      }
-
-                      setItemForm((s) => ({ ...s, ingredients: updated }));
-                      setSelectedInventoryId("");
-                      setIngredientWeight("");
-                      setIngredientUnit("");
-                      setIngredientOptional(false);
-                      setIngredientWastePercent("");
-                      setIngredientNotes("");
-                    }}
-                  >
-                    <Plus size={14} className="ml-1" />
-                    إضافة المادة للوصفة
-                  </Button>
-                </div>
-              </div>
-
-              {/* Added ingredients grid list */}
-              {itemForm.ingredients && itemForm.ingredients.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto p-1.5 border border-border/40 rounded-2xl bg-muted/10">
-                  {itemForm.ingredients.map((ing) => {
-                    const invItem: any = inventoryQuery.data?.find(
-                      (i: any) => i.id === ing.inventory_id,
-                    );
-                    const convertedWeight = convertToInventoryUnit(
-                      Number(ing.weight),
-                      ing.unit,
-                      invItem?.unit,
-                    );
-                    const wasteFactor = ing.waste_percent ? 1 + Number(ing.waste_percent) / 100 : 1;
-                    const ingredientCost = invItem
-                      ? Number(invItem.cost) * convertedWeight * wasteFactor
-                      : 0;
-
-                    return (
-                      <div
-                        key={ing.inventory_id}
-                        className="flex flex-col justify-between bg-card border border-border p-3 rounded-xl text-xs space-y-2 relative"
-                      >
-                        <div className="space-y-0.5">
-                          <div className="flex items-center justify-between">
-                            <span className="font-bold text-foreground">
-                              {invItem?.name_ar || "مادة محذوفة"}
-                            </span>
-                            {ing.optional && (
-                              <span className="bg-amber-500/10 text-amber-600 text-[9px] px-1.5 py-0.5 rounded font-bold">
-                                اختياري
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-[10px] text-muted-foreground block">
-                            المقدار: {ing.weight} {ing.unit || invItem?.unit || ""}
-                          </span>
-                          <span className="text-[10px] text-primary font-bold block">
-                            رصيد المخزن: {getInventoryStock(ing.inventory_id)?.toFixed(2) ?? "0.00"}{" "}
-                            {invItem?.unit || ""}
-                          </span>
-                          {ing.waste_percent ? (
-                            <span className="text-[9px] text-destructive block">
-                              الهدر: {ing.waste_percent}% (+
-                              {((ing.weight * ing.waste_percent) / 100).toFixed(3)})
-                            </span>
-                          ) : null}
-                          {ing.notes && (
-                            <span className="text-[9px] text-primary/80 italic block">
-                              ملاحظة: {ing.notes}
-                            </span>
-                          )}
-                          <span className="text-[10px] text-emerald-600 dark:text-emerald-500 font-bold block pt-1 border-t border-border/40 mt-1">
-                            التكلفة: {ingredientCost.toFixed(2)} ج.م
-                          </span>
-                        </div>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          className="h-7 w-7 text-destructive hover:bg-destructive/10 rounded-lg absolute bottom-2 left-2"
-                          onClick={() => {
-                            setItemForm((s) => ({
-                              ...s,
-                              ingredients: (s.ingredients || []).filter(
-                                (i) => i.inventory_id !== ing.inventory_id,
-                              ),
-                            }));
-                          }}
-                        >
-                          <Trash2 size={12} />
-                        </Button>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="flex items-center justify-center gap-2 text-[11px] text-muted-foreground text-center py-4 bg-muted/10 rounded-2xl border border-dashed border-border/60">
-                  <Info size={12} />
-                  <span>لا توجد مكونات جردية مرتبطة بهذا الصنف بعد. (غير مرتبط بخصم المخزون)</span>
-                </div>
-              )}
-            </div>
-
-            {/* Quality & Shelf-Life Specifications Section */}
-            <div className="border-t border-border/40 pt-5 mt-2 space-y-3">
-              <div>
-                <Label className="text-sm font-black text-primary flex items-center gap-1.5">
-                  <ShieldCheck size={16} />
-                  معايير جودة الطعام والسلامة والحد الأقصى للصلاحية بعد التحضير
-                </Label>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  تضمن صحة العملاء ومطابقة اشتراطات هيئة سلامة الغذاء ومراقبة جودة الوجبات
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-muted/20 p-4 rounded-2xl border border-border">
-                <div>
-                  <Label className="text-xs font-bold flex items-center gap-1">
-                    <Clock size={13} className="text-amber-500" />
-                    مدة الصلاحية بعد التحضير (بالساعات)
-                  </Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    placeholder="مثال: 24"
-                    value={qualityForm.shelf_life_hours || 24}
-                    onChange={(e) =>
-                      setQualityForm((s) => ({ ...s, shelf_life_hours: Number(e.target.value) }))
-                    }
-                    className="h-9 text-xs font-mono font-bold mt-1.5"
-                  />
-                </div>
-
-                <div>
-                  <Label className="text-xs font-bold flex items-center gap-1">
-                    <Thermometer size={13} className="text-sky-500" />
-                    شرط درجات حرارة التخزين / الحفظ
-                  </Label>
-                  <Input
-                    type="text"
-                    placeholder="مثال: 4°م ثلاجة / أو 60°م سخان"
-                    value={qualityForm.storage_condition_label || ""}
-                    onChange={(e) =>
-                      setQualityForm((s) => ({ ...s, storage_condition_label: e.target.value }))
-                    }
-                    className="h-9 text-xs font-bold mt-1.5"
-                  />
-                </div>
-
-                <div>
-                  <Label className="text-xs font-bold flex items-center gap-1">
-                    <AlertTriangle size={13} className="text-rose-500" />
-                    مسببات الحساسية (مفصولة بفواصل)
-                  </Label>
-                  <Input
-                    type="text"
-                    placeholder="مثال: غلوتين، جلبان، ألبان، بيض"
-                    value={(qualityForm.allergens || []).join("، ")}
-                    onChange={(e) =>
-                      setQualityForm((s) => ({
-                        ...s,
-                        allergens: e.target.value
-                          .split("،")
-                          .flatMap((x) => x.split(","))
-                          .map((x) => x.trim())
-                          .filter(Boolean),
-                      }))
-                    }
-                    className="h-9 text-xs font-bold mt-1.5"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Form actions footer */}
-            <div className="flex gap-2 justify-end border-t border-border/40 pt-4">
-              <Button
-                onClick={() => upsertItem.mutate()}
-                disabled={!itemForm.name_ar || !itemForm.category_id || upsertItem.isPending}
-                className="font-bold px-6"
-              >
-                {editingItem ? "حفظ تعديلات الصنف" : "إضافة الصنف للمنيو"}
-              </Button>
-              {editingItem && (
-                <Button variant="outline" onClick={cancelEditItem} className="font-bold">
-                  إلغاء التعديل
-                </Button>
-              )}
-            </div>
-
-            {upsertItem.isError && (
-              <p className="text-xs text-destructive font-bold">
-                تعذّر الحفظ: {(upsertItem.error as Error).message}
-              </p>
-            )}
-          </div>
-
           {/* Catalog grid catalog items table view */}
           <div className="bg-card border border-border p-5 rounded-2xl space-y-4">
             <div className="flex flex-col md:flex-row gap-3 md:items-center justify-between">
@@ -1116,6 +545,14 @@ function MenuPage() {
                   className="pr-9 text-right"
                 />
               </div>
+
+              <Button
+                onClick={openAddModal}
+                className="font-bold bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-2 h-10 px-5 rounded-xl shadow-xs cursor-pointer"
+              >
+                <Plus size={18} />
+                <span>إضافة صنف جديد للمنيو</span>
+              </Button>
             </div>
 
             {/* Categories filters */}
@@ -1324,7 +761,7 @@ function MenuPage() {
 
       {/* Delete Confirmation AlertDialog */}
       <AlertDialog open={!!itemToDelete} onOpenChange={(open) => !open && setItemToDelete(null)}>
-        <AlertDialogContent dir="rtl" className="text-right">
+        <AlertDialogContent className="text-right">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-lg font-black text-destructive flex items-center gap-2">
               <Trash2 size={18} />
@@ -1348,6 +785,594 @@ function MenuPage() {
               }}
             >
               نعم، حذف نهائي
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Add / Edit Menu Item Dialog Modal */}
+      <Dialog
+        open={isItemModalOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowCancelConfirm(true);
+          } else {
+            setIsItemModalOpen(true);
+          }
+        }}
+      >
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="text-right border-b border-border/40 pb-3">
+            <DialogTitle className="font-black text-xl text-primary flex items-center gap-2">
+              <ChefHat size={22} />
+              {editingItem
+                ? `تعديل الصنف: ${editingItem.name_ar}`
+                : "إضافة صنف مأكولات أو مشروب جديد"}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              قم بإدخال بيانات الصنف والسعر والمكونات واشتراطات الجودة ثم انقر حفظ
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5 pt-2">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Left column: main inputs */}
+              <div className="lg:col-span-2 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-xs font-bold">اسم الصنف بالكامل *</Label>
+                    <Input
+                      className="mt-1.5 font-bold"
+                      value={itemForm.name_ar || ""}
+                      onChange={(e) => setItemForm((s) => ({ ...s, name_ar: e.target.value }))}
+                      placeholder="مثال: بيتزا بيبروني سوبريم"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs font-bold">سعر البيع المقترح للمستهلك (ج.م) *</Label>
+                    <Input
+                      className="mt-1.5 font-bold"
+                      type="number"
+                      value={itemForm.price || ""}
+                      onChange={(e) =>
+                        setItemForm((s) => ({ ...s, price: Number(e.target.value) }))
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs font-bold">فئة المنيو *</Label>
+                    <select
+                      className="w-full mt-1.5 h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary text-right font-bold"
+                      value={itemForm.category_id || ""}
+                      onChange={(e) => setItemForm((s) => ({ ...s, category_id: e.target.value }))}
+                    >
+                      <option value="">اختر الفئة المناسبة</option>
+                      {(categoriesQuery.data ?? []).map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name_ar}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-bold">شعار أو لافتة المنتج (اختياري)</Label>
+                    <Input
+                      className="mt-1.5 h-9 text-xs"
+                      type="text"
+                      value={itemForm.badge || ""}
+                      onChange={(e) => setItemForm((s) => ({ ...s, badge: e.target.value }))}
+                      placeholder="مثال: خصم خاص، الأكثر طلباً، عرض جديد"
+                    />
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {["🔥 الأكثر طلباً", "✨ عرض جديد", "🏷️ خصم خاص", "⭐ مميز", "👑 الشيف"].map(
+                        (preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => setItemForm((s) => ({ ...s, badge: preset }))}
+                            className="text-[10px] bg-muted hover:bg-primary/10 text-foreground px-2 py-0.5 rounded-md border border-border transition font-medium cursor-pointer"
+                          >
+                            {preset}
+                          </button>
+                        ),
+                      )}
+                      {itemForm.badge && (
+                        <button
+                          type="button"
+                          onClick={() => setItemForm((s) => ({ ...s, badge: "" }))}
+                          className="text-[10px] bg-destructive/10 text-destructive px-2 py-0.5 rounded-md font-bold cursor-pointer"
+                        >
+                          إزالة
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-bold">وضع تتبع المخزون</Label>
+                    <select
+                      className="w-full mt-1.5 h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary text-right font-bold"
+                      value={itemForm.inventory_tracking || "not_tracked"}
+                      onChange={(e) =>
+                        setItemForm((s) => ({ ...s, inventory_tracking: e.target.value }))
+                      }
+                    >
+                      <option value="not_tracked">
+                        لا يتطلب تتبع مخزون (مثل علب البيبسي/العصائر)
+                      </option>
+                      <option value="recipe_required">
+                        يتطلب وجود مكونات ووصفة (خصم تلقائي عند التحضير)
+                      </option>
+                    </select>
+                  </div>
+
+                  {/* File / URL Upload inputs */}
+                  <div>
+                    <Label className="text-xs font-bold">رابط صورة الصنف (أو ارفع صورة)</Label>
+                    <div className="flex gap-2 items-center mt-1.5">
+                      <Input
+                        value={itemForm.image_url || ""}
+                        onChange={(e) => setItemForm((s) => ({ ...s, image_url: e.target.value }))}
+                        placeholder="https://example.com/food.jpg"
+                        className="flex-1 text-left"
+                        dir="ltr"
+                      />
+                      <label className="cursor-pointer inline-flex items-center justify-center gap-1 rounded-md text-xs font-semibold h-9 px-3 border border-dashed border-primary text-primary hover:bg-primary/5 transition shrink-0 bg-background">
+                        <Upload size={12} />
+                        <span>رفع</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageFileChange}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-6 pt-2 border-t border-border/40">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="available"
+                      checked={!!itemForm.is_available}
+                      onCheckedChange={(v) => setItemForm((s) => ({ ...s, is_available: v }))}
+                    />
+                    <Label htmlFor="available" className="text-xs font-bold cursor-pointer">
+                      متاح حالياً للطلب الفوري
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center gap-2 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 px-3 py-1.5 rounded-lg">
+                    <Switch
+                      id="requires_oven"
+                      checked={!!itemForm.requires_oven}
+                      onCheckedChange={(v) => setItemForm((s) => ({ ...s, requires_oven: v }))}
+                    />
+                    <Label
+                      htmlFor="requires_oven"
+                      className="text-xs font-bold cursor-pointer text-orange-800 dark:text-orange-300 flex items-center gap-1"
+                    >
+                      <span>يتطلب تحضير في الفرن (شاشة الفرن / KDS) 🍕</span>
+                    </Label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right column: Image Form Preview */}
+              <div className="flex flex-col justify-center items-center bg-muted/40 rounded-2xl p-4 border border-dashed border-border text-center">
+                <span className="text-xs font-bold text-muted-foreground block mb-3">
+                  معاينة الصورة
+                </span>
+                {itemForm.image_url ? (
+                  <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden border border-border">
+                    <img
+                      src={itemForm.image_url}
+                      alt="Preview"
+                      className="w-full h-full object-cover"
+                    />
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="absolute bottom-2 right-2 text-[10px] h-6 px-2"
+                      onClick={() => setItemForm((s) => ({ ...s, image_url: "" }))}
+                    >
+                      إزالة الصورة
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="w-full aspect-[4/3] flex flex-col items-center justify-center bg-background/50 rounded-xl text-muted-foreground">
+                    <ImageIcon size={32} className="opacity-30 mb-1" />
+                    <span className="text-[10px]">لا توجد صورة مضافة</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Recipe Ingredients builder section */}
+            <div className="border-t border-border/40 pt-5 mt-2">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-3">
+                <div>
+                  <Label className="text-sm font-black text-primary block">
+                    مكونات الوصفة (تُخصم تلقائياً من كميات المخزن عند البيع)
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    اربط الصنف بمواده الخام للتحكم الحقيقي الفوري بالهدر والمخزن
+                  </p>
+                </div>
+
+                {itemForm.price ? (
+                  <div className="flex items-center gap-3 text-xs bg-muted/60 px-4 py-2 rounded-xl border border-border">
+                    <div>
+                      <span className="text-muted-foreground text-[10px] block">
+                        تكلفة المكونات:
+                      </span>
+                      <span className="font-bold text-foreground">
+                        {recipeStats.cost.toFixed(2)} ج.م
+                      </span>
+                    </div>
+                    <div className="h-6 w-px bg-border" />
+                    <div>
+                      <span className="text-muted-foreground text-[10px] block">
+                        هامش الربح الفعلي:
+                      </span>
+                      <span
+                        className={`font-black ${recipeStats.profit >= 0 ? "text-emerald-600" : "text-destructive"}`}
+                      >
+                        {recipeStats.profit.toFixed(2)} ج.م ({recipeStats.margin.toFixed(0)}%)
+                      </span>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="bg-muted/40 p-4 rounded-2xl border border-dashed border-border mb-4 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                  <div>
+                    <Label className="text-xs font-bold text-primary flex items-center gap-1">
+                      <Building2 size={13} />
+                      المخزن الفرعي المستهدف
+                    </Label>
+                    <select
+                      className="w-full mt-1.5 h-9 rounded-md border border-input bg-background px-3 text-xs focus:outline-none text-right font-bold"
+                      value={selectedRecipeWarehouseId}
+                      onChange={(e) => setSelectedRecipeWarehouseId(e.target.value)}
+                    >
+                      <option value="all">جميع المخازن (رصيد مجمع)</option>
+                      {(warehousesQuery.data ?? []).map((wh) => (
+                        <option key={wh.id} value={wh.id}>
+                          {wh.name} {wh.is_default ? "(رئيسي)" : "(فرعي)"}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-bold">اختر صنفاً من المخزن لتضمينه</Label>
+                    <select
+                      className="w-full mt-1.5 h-9 rounded-md border border-input bg-background px-3 text-xs focus:outline-none text-right font-bold"
+                      value={selectedInventoryId}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSelectedInventoryId(val);
+                        const inv = inventoryQuery.data?.find((i: any) => i.id === val);
+                        if (inv) {
+                          setIngredientUnit(inv.unit);
+                        }
+                      }}
+                    >
+                      <option value="">اختر المادة الخام...</option>
+                      {(inventoryQuery.data ?? []).map((inv: any) => {
+                        let stock = Number(inv.quantity || 0);
+                        if (selectedRecipeWarehouseId !== "all") {
+                          const whRec = (warehouseInventoryQuery.data ?? []).find(
+                            (w: any) =>
+                              w.warehouse_id === selectedRecipeWarehouseId &&
+                              w.inventory_id === inv.id,
+                          );
+                          stock = Number(whRec?.quantity || 0);
+                        }
+                        return (
+                          <option key={inv.id} value={inv.id}>
+                            {inv.name_ar} (متوفر: {stock.toFixed(2)} {inv.unit})
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-bold">الوزن / الكمية المطلوبة للوجبة</Label>
+                    <Input
+                      type="number"
+                      step="any"
+                      placeholder="مثال: 0.150 للمية وخمسين جرام"
+                      value={ingredientWeight}
+                      onChange={(e) => setIngredientWeight(e.target.value)}
+                      className="h-9 text-xs mt-1.5 font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-bold">الوحدة بالوصفة</Label>
+                    <select
+                      className="w-full mt-1.5 h-9 rounded-md border border-input bg-background px-3 text-xs focus:outline-none text-right font-bold"
+                      value={ingredientUnit}
+                      onChange={(e) => setIngredientUnit(e.target.value)}
+                    >
+                      <option value="">اختر الوحدة</option>
+                      <option value="g">جرام (g)</option>
+                      <option value="kg">كيلوجرام (kg)</option>
+                      <option value="ml">مليلتر (ml)</option>
+                      <option value="l">لتر (l)</option>
+                      <option value="pcs">قطعة (pcs)</option>
+                      <option value="box">علبة (box)</option>
+                      <option value="pack">عبوة (pack)</option>
+                      <option value="bottle">زجاجة (bottle)</option>
+                      <option value="can">كان (can)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full h-9 bg-background hover:bg-muted text-xs font-bold"
+                    onClick={() => {
+                      if (!selectedInventoryId || !ingredientWeight) return;
+                      const weightNum = Number(ingredientWeight);
+                      if (isNaN(weightNum) || weightNum <= 0) return;
+
+                      const wasteNum = Number(ingredientWastePercent) || undefined;
+
+                      const currentIngredients = itemForm.ingredients || [];
+                      const existingIdx = currentIngredients.findIndex(
+                        (ing) => ing.inventory_id === selectedInventoryId,
+                      );
+
+                      const newIngredientItem: MenuItemIngredient = {
+                        inventory_id: selectedInventoryId,
+                        weight: weightNum,
+                        unit: ingredientUnit || undefined,
+                        optional: ingredientOptional || undefined,
+                        waste_percent: wasteNum,
+                        notes: ingredientNotes || undefined,
+                      };
+
+                      let updated: MenuItemIngredient[];
+                      if (existingIdx > -1) {
+                        updated = [...currentIngredients];
+                        updated[existingIdx] = newIngredientItem;
+                      } else {
+                        updated = [...currentIngredients, newIngredientItem];
+                      }
+
+                      setItemForm((s) => ({ ...s, ingredients: updated }));
+                      setSelectedInventoryId("");
+                      setIngredientWeight("");
+                      setIngredientUnit("");
+                      setIngredientOptional(false);
+                      setIngredientWastePercent("");
+                      setIngredientNotes("");
+                    }}
+                  >
+                    <Plus size={14} className="ml-1" />
+                    إضافة المادة للوصفة
+                  </Button>
+                </div>
+              </div>
+
+              {itemForm.ingredients && itemForm.ingredients.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto p-1.5 border border-border/40 rounded-2xl bg-muted/10">
+                  {itemForm.ingredients.map((ing) => {
+                    const invItem: any = inventoryQuery.data?.find(
+                      (i: any) => i.id === ing.inventory_id,
+                    );
+                    const convertedWeight = convertToInventoryUnit(
+                      Number(ing.weight),
+                      ing.unit,
+                      invItem?.unit,
+                    );
+                    const wasteFactor = ing.waste_percent ? 1 + Number(ing.waste_percent) / 100 : 1;
+                    const ingredientCost = invItem
+                      ? Number(invItem.cost) * convertedWeight * wasteFactor
+                      : 0;
+
+                    return (
+                      <div
+                        key={ing.inventory_id}
+                        className="flex flex-col justify-between bg-card border border-border p-3 rounded-xl text-xs space-y-2 relative"
+                      >
+                        <div className="space-y-0.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-foreground">
+                              {invItem?.name_ar || "مادة محذوفة"}
+                            </span>
+                            {ing.optional && (
+                              <span className="bg-amber-500/10 text-amber-600 text-[9px] px-1.5 py-0.5 rounded font-bold">
+                                اختياري
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-muted-foreground block">
+                            المقدار: {ing.weight} {ing.unit || invItem?.unit || ""}
+                          </span>
+                          <span className="text-[10px] text-primary font-bold block">
+                            رصيد المخزن: {getInventoryStock(ing.inventory_id)?.toFixed(2) ?? "0.00"}{" "}
+                            {invItem?.unit || ""}
+                          </span>
+                        </div>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-destructive hover:bg-destructive/10 rounded-lg absolute bottom-2 left-2"
+                          onClick={() => {
+                            setItemForm((s) => ({
+                              ...s,
+                              ingredients: (s.ingredients || []).filter(
+                                (i) => i.inventory_id !== ing.inventory_id,
+                              ),
+                            }));
+                          }}
+                        >
+                          <Trash2 size={12} />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-2 text-[11px] text-muted-foreground text-center py-4 bg-muted/10 rounded-2xl border border-dashed border-border/60">
+                  <Info size={12} />
+                  <span>لا توجد مكونات جردية مرتبطة بهذا الصنف بعد.</span>
+                </div>
+              )}
+            </div>
+
+            {/* Quality & Shelf-Life Specifications Section */}
+            <div className="border-t border-border/40 pt-5 mt-2 space-y-3">
+              <div>
+                <Label className="text-sm font-black text-primary flex items-center gap-1.5">
+                  <ShieldCheck size={16} />
+                  معايير جودة الطعام والسلامة والحد الأقصى للصلاحية بعد التحضير
+                </Label>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-muted/20 p-4 rounded-2xl border border-border">
+                <div>
+                  <Label className="text-xs font-bold flex items-center gap-1">
+                    <Clock size={13} className="text-amber-500" />
+                    مدة الصلاحية بعد التحضير (بالساعات)
+                  </Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    placeholder="مثال: 24"
+                    value={qualityForm.shelf_life_hours || 24}
+                    onChange={(e) =>
+                      setQualityForm((s) => ({ ...s, shelf_life_hours: Number(e.target.value) }))
+                    }
+                    className="h-9 text-xs font-mono font-bold mt-1.5"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-xs font-bold flex items-center gap-1">
+                    <Thermometer size={13} className="text-sky-500" />
+                    شرط درجات حرارة التخزين / الحفظ
+                  </Label>
+                  <Input
+                    type="text"
+                    placeholder="مثال: 4°م ثلاجة / أو 60°م سخان"
+                    value={qualityForm.storage_condition_label || ""}
+                    onChange={(e) =>
+                      setQualityForm((s) => ({ ...s, storage_condition_label: e.target.value }))
+                    }
+                    className="h-9 text-xs font-bold mt-1.5"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-xs font-bold flex items-center gap-1">
+                    <AlertTriangle size={13} className="text-rose-500" />
+                    مسببات الحساسية (مفصولة بفواصل)
+                  </Label>
+                  <Input
+                    type="text"
+                    placeholder="مثال: غلوتين، جلبان، ألبان، بيض"
+                    value={(qualityForm.allergens || []).join("، ")}
+                    onChange={(e) =>
+                      setQualityForm((s) => ({
+                        ...s,
+                        allergens: e.target.value
+                          .split("،")
+                          .flatMap((x) => x.split(","))
+                          .map((x) => x.trim())
+                          .filter(Boolean),
+                      }))
+                    }
+                    className="h-9 text-xs font-bold mt-1.5"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="flex gap-2 justify-end border-t border-border/40 pt-4 mt-4">
+            <Button
+              type="button"
+              onClick={() => setShowSaveConfirm(true)}
+              disabled={!itemForm.name_ar || !itemForm.category_id || upsertItem.isPending}
+              className="font-bold px-6 cursor-pointer"
+            >
+              {editingItem ? "حفظ التعديلات" : "إضافة الصنف للمنيو"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowCancelConfirm(true)}
+              className="font-bold cursor-pointer"
+            >
+              إلغاء
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Save Confirmation AlertDialog */}
+      <AlertDialog open={showSaveConfirm} onOpenChange={setShowSaveConfirm}>
+        <AlertDialogContent className="text-right">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-lg font-black text-primary flex items-center gap-2">
+              <ChefHat size={18} />
+              تأكيد حفظ بيانات الصنف
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-muted-foreground">
+              هل أنت متأكد من حفظ بيانات صنف{" "}
+              <span className="font-bold text-foreground">"{itemForm.name_ar}"</span> في المنيو؟
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 pt-2">
+            <AlertDialogCancel className="font-bold cursor-pointer">إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold cursor-pointer"
+              onClick={() => upsertItem.mutate()}
+            >
+              {upsertItem.isPending ? <Loader2 className="animate-spin h-4 w-4" /> : "تأكيد الحفظ"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Cancel Confirmation AlertDialog */}
+      <AlertDialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
+        <AlertDialogContent className="text-right">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-lg font-black text-amber-600 flex items-center gap-2">
+              <AlertTriangle size={18} />
+              تأكيد إلغاء التعديل
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm text-muted-foreground">
+              هل أنت متأكد من إلغاء العملية؟ سيتم إغلاق الشاشة وتجاهل جميع البيانات والتعديلات غير
+              المحفوظة.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 pt-2">
+            <AlertDialogCancel className="font-bold cursor-pointer">
+              متابعة التعديل
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground font-bold cursor-pointer"
+              onClick={() => {
+                setShowCancelConfirm(false);
+                setIsItemModalOpen(false);
+                cancelEditItem();
+              }}
+            >
+              نعم، إلغاء وإغلاق
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

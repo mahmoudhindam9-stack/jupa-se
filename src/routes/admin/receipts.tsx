@@ -128,7 +128,7 @@ function ReceiptDesignerPage() {
   };
 
   return (
-    <div className="space-y-6 pb-16" dir="rtl">
+    <div className="space-y-6 pb-16">
       {/* Top Banner Header */}
       <div className="bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-500/20 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl -ml-20 -mt-20 pointer-events-none" />

@@ -124,7 +124,7 @@ function HRPage() {
   const handlePrintVoucher = (vData: typeof voucherData) => {
     if (!vData) return;
     const fullHtml = `<!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar">
 <head>
   <meta charset="utf-8" />
   <title>${vData.title}</title>
@@ -749,7 +749,7 @@ function HRPage() {
   }, [attendance, attendanceDate, employees]);
 
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="space-y-6">
       {/* Visual Header */}
       <div className="bg-card border border-border p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="space-y-1.5 text-right">
@@ -1390,7 +1390,7 @@ function HRPage() {
 
       {/* DIALOG 1: ADD EMPLOYEE */}
       <Dialog open={isAddEmpOpen} onOpenChange={setIsAddEmpOpen}>
-        <DialogContent className="max-w-md bg-card border border-border" dir="rtl">
+        <DialogContent className="max-w-md bg-card border border-border">
           <DialogHeader>
             <DialogTitle className="font-black text-right">إضافة موظف جديد</DialogTitle>
             <DialogDescription className="text-right">
@@ -1498,7 +1498,7 @@ function HRPage() {
 
       {/* DIALOG 2: EDIT EMPLOYEE */}
       <Dialog open={isEditEmpOpen} onOpenChange={setIsEditEmpOpen}>
-        <DialogContent className="max-w-md bg-card border border-border" dir="rtl">
+        <DialogContent className="max-w-md bg-card border border-border">
           <DialogHeader>
             <DialogTitle className="font-black text-right">تعديل بيانات الموظف</DialogTitle>
             <DialogDescription className="text-right">
@@ -1614,7 +1614,7 @@ function HRPage() {
 
       {/* DIALOG 3: REQUEST LOAN / ADVANCE */}
       <Dialog open={isAddLoanOpen} onOpenChange={setIsAddLoanOpen}>
-        <DialogContent className="max-w-md bg-card border border-border" dir="rtl">
+        <DialogContent className="max-w-md bg-card border border-border">
           <DialogHeader>
             <DialogTitle className="font-black text-right">صرف سلفة لموظف</DialogTitle>
             <DialogDescription className="text-right">
@@ -1744,7 +1744,7 @@ function HRPage() {
 
       {/* DIALOG 4: PAY SALARY */}
       <Dialog open={isPaySalaryOpen} onOpenChange={setIsPaySalaryOpen}>
-        <DialogContent className="max-w-md bg-card border border-border" dir="rtl">
+        <DialogContent className="max-w-md bg-card border border-border">
           <DialogHeader>
             <DialogTitle className="font-black text-right">صرف رواتب ومستحقات الموظف</DialogTitle>
             <DialogDescription className="text-right">
@@ -1827,7 +1827,7 @@ function HRPage() {
 
       {/* DIALOG 5: CONFIRM DELETE EMPLOYEE */}
       <Dialog open={isDeleteEmpOpen} onOpenChange={setIsDeleteEmpOpen}>
-        <DialogContent className="max-w-md bg-card border border-border text-right" dir="rtl">
+        <DialogContent className="max-w-md bg-card border border-border text-right">
           <DialogHeader>
             <DialogTitle className="font-black text-rose-600 flex items-center gap-2">
               <AlertCircle size={20} />
@@ -1860,10 +1860,7 @@ function HRPage() {
 
       {/* DIALOG 6: VOUCHER & DOCUMENT PREVIEW / PRINT */}
       <Dialog open={isVoucherOpen} onOpenChange={setIsVoucherOpen}>
-        <DialogContent
-          className="max-w-2xl bg-card border border-border text-right max-h-[90vh] overflow-y-auto"
-          dir="rtl"
-        >
+        <DialogContent className="max-w-2xl bg-card border border-border text-right max-h-[90vh] overflow-y-auto">
           <DialogHeader className="border-b border-border/60 pb-3">
             <div className="flex items-center justify-between">
               <Badge className="bg-primary/10 text-primary border border-primary/20 text-xs font-bold px-3 py-1">

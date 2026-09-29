@@ -487,6 +487,28 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
       },
     ],
   },
+  {
+    id: "park_tickets",
+    name: "12. إدارة الحديقة والمول التجاري",
+    desc: "إدارة ورديات التذاكر، الخزائن، والتحكم في إغلاقات الحديقة",
+    permissions: [
+      {
+        key: "manage_park_shifts",
+        name: "الدخول وإدارة الورديات المفتوحة",
+        desc: "صلاحية استعراض الورديات المعلقة للحديقة وتعديلها أو دخولها كمدير",
+      },
+      {
+        key: "delete_park_shifts",
+        name: "حذف وإلغاء ورديات الحديقة المعلقة",
+        desc: "صلاحية الحذف النهائي لأي وردية معلقة في النظام",
+      },
+      {
+        key: "park_reports",
+        name: "استعراض الإيرادات وتقارير الإغلاق للحديقة",
+        desc: "استعراض كل القيود المحاسبية، فواتير التذاكر والورديات المغلقة",
+      },
+    ],
+  },
 ];
 
 function UsersPage() {
@@ -758,7 +780,7 @@ function UsersPage() {
   };
 
   return (
-    <div className="space-y-8 p-1 sm:p-2" dir="rtl">
+    <div className="space-y-8 p-1 sm:p-2">
       {/* Page Header */}
       <div>
         <div className="flex items-center gap-2">
@@ -1021,7 +1043,7 @@ function UsersPage() {
 
       {/* Confirmation Dialog: Historical Period Lock */}
       <AlertDialog open={isConfirmPeriodLockOpen} onOpenChange={setIsConfirmPeriodLockOpen}>
-        <AlertDialogContent className="text-right dir-rtl max-w-lg rounded-2xl">
+        <AlertDialogContent className="text-right max-w-lg rounded-2xl">
           <AlertDialogHeader className="text-right space-y-2">
             <AlertDialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
               {erpState.isAccountingPeriodLocked ? (
@@ -1082,7 +1104,7 @@ function UsersPage() {
 
       {/* Confirmation Dialog: Fiscal Year 2026 Status */}
       <AlertDialog open={isConfirmFiscalYearOpen} onOpenChange={setIsConfirmFiscalYearOpen}>
-        <AlertDialogContent className="text-right dir-rtl max-w-lg rounded-2xl">
+        <AlertDialogContent className="text-right max-w-lg rounded-2xl">
           <AlertDialogHeader className="text-right space-y-2">
             <AlertDialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
               <Calendar className="text-primary shrink-0" size={20} />
@@ -1140,7 +1162,7 @@ function UsersPage() {
       {/* Permissions Dialog */}
 
       <AlertDialog open={isConfirmUpsertOpen} onOpenChange={setIsConfirmUpsertOpen}>
-        <AlertDialogContent className="text-right dir-rtl">
+        <AlertDialogContent className="text-right">
           <AlertDialogHeader className="text-right">
             <AlertDialogTitle className="flex items-center gap-2 text-foreground">
               <ShieldCheck className="text-primary" size={20} />
@@ -1162,7 +1184,7 @@ function UsersPage() {
       </AlertDialog>
 
       <AlertDialog open={isConfirmDeleteOpen} onOpenChange={setIsConfirmDeleteOpen}>
-        <AlertDialogContent className="text-right dir-rtl">
+        <AlertDialogContent className="text-right">
           <AlertDialogHeader className="text-right">
             <AlertDialogTitle className="flex items-center gap-2 text-foreground">
               <AlertTriangle className="text-destructive" size={20} />
@@ -1185,7 +1207,7 @@ function UsersPage() {
       </AlertDialog>
 
       <AlertDialog open={isConfirmSavePermsOpen} onOpenChange={setIsConfirmSavePermsOpen}>
-        <AlertDialogContent className="text-right dir-rtl">
+        <AlertDialogContent className="text-right">
           <AlertDialogHeader className="text-right">
             <AlertDialogTitle className="flex items-center gap-2 text-foreground">
               <ShieldCheck className="text-emerald-500" size={20} />
@@ -1210,7 +1232,7 @@ function UsersPage() {
 
       {/* Detailed Permissions Dialog */}
       <Dialog open={!!permissionsUser} onOpenChange={(open) => !open && setPermissionsUser(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto text-right dir-rtl p-4 sm:p-6">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto text-right p-4 sm:p-6">
           <DialogHeader className="text-right pb-3 border-b border-border">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <DialogTitle className="flex items-center gap-2 text-foreground text-lg sm:text-xl font-black">

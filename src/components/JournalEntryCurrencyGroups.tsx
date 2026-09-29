@@ -55,7 +55,7 @@ export function JournalEntryCurrencyGroups({
   ) as string[];
 
   return (
-    <div className="p-3 sm:p-4 space-y-4" dir="rtl">
+    <div className="p-3 sm:p-4 space-y-4">
       <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-muted/20 px-3 py-2">
         <span className="font-bold text-sm">تفاصيل القيد حسب العملة</span>
         <Badge variant="outline" className="font-mono">
@@ -116,7 +116,7 @@ export function JournalEntryCurrencyGroups({
                       <th className="p-3">البيان</th>
                       <th className="p-3 text-center text-emerald-700">مدين ({currency})</th>
                       <th className="p-3 text-center text-rose-700">دائن ({currency})</th>
-                      <th className="p-3 text-center">سعر الصرف</th>
+                      <th className="p-3 text-center">Rate (المعامل)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">

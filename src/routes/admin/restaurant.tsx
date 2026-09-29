@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
   ArrowUpRight,
@@ -15,7 +15,9 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { erpStore } from "@/shared/services/erpStore";
+import { erpStore, RestaurantShift } from "@/shared/services/erpStore";
+import { RestaurantShiftLauncherModal } from "@/components/restaurant/RestaurantShiftLauncherModal";
+import { RestaurantShiftClosingReportModal } from "@/components/restaurant/RestaurantShiftClosingReportModal";
 
 export const Route = createFileRoute("/admin/restaurant")({
   head: () => ({ meta: [{ title: "إدارة المطعم - النظام الشامل" }] }),
@@ -43,7 +45,10 @@ function getCounts(): RestaurantCounts {
 }
 
 function RestaurantHubPage() {
+  const navigate = useNavigate();
   const [counts, setCounts] = useState<RestaurantCounts>(getCounts);
+  const [isLauncherOpen, setIsLauncherOpen] = useState(false);
+  const [closingShift, setClosingShift] = useState<RestaurantShift | null>(null);
 
   useEffect(() => {
     const unsubscribe = erpStore.subscribe(() => {
@@ -56,7 +61,7 @@ function RestaurantHubPage() {
     {
       title: "نقطة البيع (POS)",
       description: "شاشة البيع السريعة لإدخال الطلبات، الدفع، وطباعة الفواتير",
-      to: "/pos",
+      action: () => setIsLauncherOpen(true),
       icon: Grid3X3,
       color: "from-blue-500/20 to-indigo-500/20 text-blue-600 dark:text-blue-400",
       badge: "الرئيسية",
@@ -99,8 +104,8 @@ function RestaurantHubPage() {
       stats: `${counts.orders} طلب مسجل`,
     },
     {
-      title: "إدارة المنيو والصور والأصناف",
-      description: "إضافة وتعديل الأقسام، الأسعار، الشعارات (خصم، جديد)، والمكونات",
+      title: "إدارة المنيو والأصناف",
+      description: "إضافة وتعديل الأقسام، الأسعار، الشعارات، والمكونات",
       to: "/admin/menu",
       icon: Utensils,
       color: "from-rose-500/20 to-red-500/20 text-rose-600 dark:text-rose-400",
@@ -119,7 +124,7 @@ function RestaurantHubPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 pb-12" dir="rtl">
+    <div className="mx-auto max-w-7xl space-y-6 pb-12">
       <section className="relative overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-l from-slate-900 via-slate-800 to-indigo-950 p-6 text-white shadow-xl sm:p-8">
         <div className="pointer-events-none absolute -bottom-10 -left-10 h-64 w-64 rounded-full bg-primary/20 blur-3xl" />
         <div className="relative z-10 flex flex-col justify-between gap-6 md:flex-row md:items-center">
@@ -136,12 +141,13 @@ function RestaurantHubPage() {
               فتحه مباشرة.
             </p>
           </div>
-          <Link to="/pos" className="shrink-0">
-            <Button className="w-full gap-2 bg-primary font-black text-primary-foreground shadow-lg hover:bg-primary/90 sm:w-auto">
-              <Grid3X3 size={18} aria-hidden="true" />
-              فتح نقطة البيع الآن
-            </Button>
-          </Link>
+          <Button
+            onClick={() => setIsLauncherOpen(true)}
+            className="w-full gap-2 bg-primary font-black text-primary-foreground shadow-lg hover:bg-primary/90 sm:w-auto"
+          >
+            <Grid3X3 size={18} aria-hidden="true" />
+            فتح نقطة البيع الآن
+          </Button>
         </div>
       </section>
 
@@ -162,54 +168,127 @@ function RestaurantHubPage() {
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
           {modules.map((module) => {
             const Icon = module.icon;
+            const Component = module.action ? "button" : "a";
+            const props = module.action
+              ? { onClick: module.action, type: "button" }
+              : { href: module.to };
+
             return (
-              <Link
-                key={module.to}
-                to={module.to}
+              <div
+                key={module.title}
                 className="group rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
               >
-                <Card className="flex h-full flex-col overflow-hidden rounded-2xl border border-border/80 bg-card shadow-sm transition-all duration-300 group-hover:border-primary/50 group-hover:bg-accent/30 group-hover:shadow-xl">
-                  <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
-                    <div
-                      className={`rounded-2xl bg-gradient-to-br p-3 shadow-inner ${module.color}`}
-                    >
-                      <Icon size={24} aria-hidden="true" />
-                    </div>
-                    <span className="rounded-full border border-border/60 bg-muted px-2.5 py-1 text-[11px] font-bold text-muted-foreground">
-                      {module.badge}
-                    </span>
-                  </CardHeader>
-                  <CardContent className="flex flex-1 flex-col justify-between space-y-4 pt-1">
-                    <div className="space-y-1.5">
-                      <h3 className="flex items-center justify-between gap-3 text-lg font-black text-foreground transition group-hover:text-primary">
-                        <span>{module.title}</span>
-                        <ArrowUpRight
-                          size={18}
-                          className="shrink-0 text-primary opacity-0 transition-opacity group-hover:opacity-100"
-                          aria-hidden="true"
-                        />
-                      </h3>
-                      <CardDescription className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-                        {module.description}
-                      </CardDescription>
-                    </div>
-                    <div className="flex items-center justify-between border-t border-border/60 pt-3 text-xs font-bold text-muted-foreground">
-                      <span className="inline-flex items-center gap-1.5 font-black text-primary">
-                        <Clock size={13} aria-hidden="true" />
-                        {module.stats}
-                      </span>
-                      <span className="inline-flex items-center gap-1 text-primary">
-                        فتح الواجهة
-                        <ArrowUpRight size={14} aria-hidden="true" />
-                      </span>
-                    </div>
-                  </CardContent>
+                <Card
+                  onClick={module.action}
+                  className={`flex h-full flex-col overflow-hidden rounded-2xl border border-border/80 bg-card shadow-sm transition-all duration-300 group-hover:border-primary/50 group-hover:bg-accent/30 group-hover:shadow-xl ${module.action ? "cursor-pointer" : ""}`}
+                >
+                  {!module.action && (
+                    // @ts-ignore
+                    <a href={module.to} className="contents">
+                      <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
+                        <div
+                          className={`rounded-2xl bg-gradient-to-br p-3 shadow-inner ${module.color}`}
+                        >
+                          <Icon size={24} aria-hidden="true" />
+                        </div>
+                        <span className="rounded-full border border-border/60 bg-muted px-2.5 py-1 text-[11px] font-bold text-muted-foreground">
+                          {module.badge}
+                        </span>
+                      </CardHeader>
+                      <CardContent className="flex flex-1 flex-col justify-between space-y-4 pt-1">
+                        <div className="space-y-1.5">
+                          <h3 className="flex items-center justify-between gap-3 text-lg font-black text-foreground transition group-hover:text-primary">
+                            <span>{module.title}</span>
+                            <ArrowUpRight
+                              size={18}
+                              className="shrink-0 text-primary opacity-0 transition-opacity group-hover:opacity-100"
+                              aria-hidden="true"
+                            />
+                          </h3>
+                          <CardDescription className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                            {module.description}
+                          </CardDescription>
+                        </div>
+                        <div className="flex items-center justify-between border-t border-border/60 pt-3 text-xs font-bold text-muted-foreground">
+                          <span className="inline-flex items-center gap-1.5 font-black text-primary">
+                            <Clock size={13} aria-hidden="true" />
+                            {module.stats}
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-primary">
+                            فتح الواجهة
+                            <ArrowUpRight size={14} aria-hidden="true" />
+                          </span>
+                        </div>
+                      </CardContent>
+                    </a>
+                  )}
+                  {module.action && (
+                    <>
+                      <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
+                        <div
+                          className={`rounded-2xl bg-gradient-to-br p-3 shadow-inner ${module.color}`}
+                        >
+                          <Icon size={24} aria-hidden="true" />
+                        </div>
+                        <span className="rounded-full border border-border/60 bg-muted px-2.5 py-1 text-[11px] font-bold text-muted-foreground">
+                          {module.badge}
+                        </span>
+                      </CardHeader>
+                      <CardContent className="flex flex-1 flex-col justify-between space-y-4 pt-1">
+                        <div className="space-y-1.5">
+                          <h3 className="flex items-center justify-between gap-3 text-lg font-black text-foreground transition group-hover:text-primary">
+                            <span>{module.title}</span>
+                            <ArrowUpRight
+                              size={18}
+                              className="shrink-0 text-primary opacity-0 transition-opacity group-hover:opacity-100"
+                              aria-hidden="true"
+                            />
+                          </h3>
+                          <CardDescription className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                            {module.description}
+                          </CardDescription>
+                        </div>
+                        <div className="flex items-center justify-between border-t border-border/60 pt-3 text-xs font-bold text-muted-foreground">
+                          <span className="inline-flex items-center gap-1.5 font-black text-primary">
+                            <Clock size={13} aria-hidden="true" />
+                            {module.stats}
+                          </span>
+                          <span className="inline-flex items-center gap-1 text-primary">
+                            فتح الواجهة
+                            <ArrowUpRight size={14} aria-hidden="true" />
+                          </span>
+                        </div>
+                      </CardContent>
+                    </>
+                  )}
                 </Card>
-              </Link>
+              </div>
             );
           })}
         </div>
       </section>
+
+      <RestaurantShiftLauncherModal
+        isOpen={isLauncherOpen}
+        onClose={() => setIsLauncherOpen(false)}
+        onRequestCloseShift={(shift) => {
+          setIsLauncherOpen(false);
+          setClosingShift(shift);
+        }}
+      />
+
+      {closingShift && (
+        <RestaurantShiftClosingReportModal
+          isOpen={!!closingShift}
+          onClose={() => setClosingShift(null)}
+          shift={closingShift}
+          onReportCompleted={() => {
+            setClosingShift(null);
+            // Return to restaurant hub is automatic if it closes the modal,
+            // and we aren't opening a new shift automatically.
+          }}
+        />
+      )}
     </div>
   );
 }

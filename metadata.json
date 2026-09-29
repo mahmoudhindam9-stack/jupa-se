@@ -1,0 +1,6 @@
+{
+  "name": "Restocash",
+  "description": "Restaurant management and point-of-sale system.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

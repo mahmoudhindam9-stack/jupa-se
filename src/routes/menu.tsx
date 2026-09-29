@@ -204,7 +204,7 @@ function MenuPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-cairo" dir="rtl">
+    <div className="min-h-screen bg-slate-50 font-cairo">
       {/* Header */}
       <header className="bg-white shadow-sm sticky top-0 z-40">
         <div className="max-w-md mx-auto px-4 h-16 flex items-center justify-between">

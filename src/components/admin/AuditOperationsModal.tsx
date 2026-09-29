@@ -128,7 +128,7 @@ export function AuditOperationsModal({
     const win = window.open("", "_blank", "width=1200,height=800");
     if (!win) return;
     win.document.write(
-      `<!doctype html><html dir="rtl"><head><meta charset="utf-8"><title>${title}</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111827}h1{font-size:22px;margin-bottom:18px}.summary{display:grid;gap:8px;font-size:16px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #d1d5db;padding:8px;text-align:right;vertical-align:top}th{background:#f3f4f6} @media print{body{padding:10px}}</style></head><body><h1>${title}</h1>${rows}</body></html>`,
+      `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#111827}h1{font-size:22px;margin-bottom:18px}.summary{display:grid;gap:8px;font-size:16px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #d1d5db;padding:8px;text-align:right;vertical-align:top}th{background:#f3f4f6} @media print{body{padding:10px}}</style></head><body><h1>${title}</h1>${rows}</body></html>`,
     );
     win.document.close();
     win.focus();
@@ -140,10 +140,7 @@ export function AuditOperationsModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="max-w-6xl w-[96vw] h-[88vh] p-0 overflow-hidden flex flex-col"
-        dir="rtl"
-      >
+      <DialogContent className="max-w-6xl w-[96vw] h-[88vh] p-0 overflow-hidden flex flex-col">
         <DialogHeader className="px-6 pt-6 pb-4 border-b bg-muted/20">
           <div className="flex items-start justify-between gap-4">
             <div>

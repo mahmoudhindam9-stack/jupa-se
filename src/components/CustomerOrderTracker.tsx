@@ -63,10 +63,7 @@ export function CustomerOrderTracker({ token, onClose }) {
     );
   if (error || !order)
     return (
-      <div
-        className="fixed inset-0 z-[90] bg-slate-950/60 flex items-center justify-center p-4"
-        dir="rtl"
-      >
+      <div className="fixed inset-0 z-[90] bg-slate-950/60 flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl p-7 max-w-sm w-full text-center">
           <div className="font-black text-lg">تعذر العثور على الطلب</div>
           <div className="text-sm text-slate-500 mt-2">تحقق من رابط المتابعة أو أعد المحاولة.</div>
@@ -81,10 +78,7 @@ export function CustomerOrderTracker({ token, onClose }) {
   const Icon = meta.icon;
   const paymentCurrency = order.payment_currency || order.pricing_currency || "EGP";
   return (
-    <div
-      className="fixed inset-0 z-[90] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4"
-      dir="rtl"
-    >
+    <div className="fixed inset-0 z-[90] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-200">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center">

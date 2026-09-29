@@ -89,7 +89,7 @@ export function AccountSearchSelect({
   };
 
   return (
-    <div ref={containerRef} className={`relative w-full ${className}`} dir="rtl">
+    <div ref={containerRef} className={`relative w-full ${className}`}>
       {/* Trigger Button */}
       <button
         type="button"

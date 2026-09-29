@@ -17,6 +17,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { erpStore, type Account } from "@/shared/services/erpStore";
 import { inventoryService } from "@/features/inventory/services/inventoryService";
 import { AuditOperationsModal } from "@/components/admin/AuditOperationsModal";
+import { TreasuryReportModal } from "@/components/admin/TreasuryReportModal";
+import { printTreasuryMovementDocument } from "@/shared/utils/printAccountingDocument";
 import {
   UtensilsCrossed,
   Package,
@@ -61,6 +63,8 @@ import {
   LockKeyholeOpen,
   Trash2,
   Loader2,
+  Printer,
+  Sparkles,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -157,9 +161,25 @@ function AdminDashboard() {
   });
 
   const [editingTreasuryId, setEditingTreasuryId] = useState<string | null>(null);
+  const [editTreasuryForm, setEditTreasuryForm] = useState({
+    name_ar: "",
+    type: "cash" as "cash" | "bank",
+    currency: "EGP",
+    responsible_employee: "",
+    containers: [] as { id: string; name: string; currency: string; balance: number }[],
+    linked_to_restaurant: false,
+    account_code: "",
+  });
   const [treasuryToDelete, setTreasuryToDelete] = useState<any | null>(null);
   const [treasuryToggleStatusDialog, setTreasuryToggleStatusDialog] = useState<any | null>(null);
   const [isProcessingTreasuryAction, setIsProcessingTreasuryAction] = useState(false);
+
+  // Treasury Reporting & Movement Document Center State
+  const [isTreasuryReportModalOpen, setIsTreasuryReportModalOpen] = useState(false);
+  const [reportInitialTreasuryId, setReportInitialTreasuryId] = useState<string>("all");
+  const [reportInitialType, setReportInitialType] = useState<
+    "document" | "journal" | "table" | "excel"
+  >("document");
 
   // Treasury Details Modal state
   const [selectedTreasuryForDetails, setSelectedTreasuryForDetails] = useState<Account | null>(
@@ -545,33 +565,41 @@ function AdminDashboard() {
     setErpState(erpStore.getState());
   };
 
-  // Add or Update treasury
+  // Add new treasury
   const handleAddTreasury = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTreasuryForm.name_ar) return;
-
-    if (editingTreasuryId) {
-      erpStore.updateTreasury(editingTreasuryId, {
-        name_ar: newTreasuryForm.name_ar,
-        type: newTreasuryForm.type,
-        currency: newTreasuryForm.currency,
-        responsible_employee: newTreasuryForm.responsible_employee || "أمين الخزينة",
-        containers: newTreasuryForm.containers,
-        linked_to_restaurant: newTreasuryForm.linked_to_restaurant,
-        account_code: newTreasuryForm.account_code,
+    if (!newTreasuryForm.name_ar) {
+      toast({
+        title: "اسم الخزينة مطلوب",
+        description: "يرجى كتابة اسم الخزينة العربي للمتابعة.",
+        variant: "destructive",
       });
-    } else {
-      erpStore.addTreasury(
-        newTreasuryForm.name_ar,
-        newTreasuryForm.type,
-        newTreasuryForm.currency,
-        Number(newTreasuryForm.balance),
-        newTreasuryForm.responsible_employee || "أمين الخزينة",
-        newTreasuryForm.containers,
-        newTreasuryForm.linked_to_restaurant,
-        newTreasuryForm.account_code,
-      );
+      return;
     }
+
+    // Validate multi currency containers if needed
+    if (
+      newTreasuryForm.currency === "MULTI" &&
+      (!newTreasuryForm.containers || newTreasuryForm.containers.length === 0)
+    ) {
+      toast({
+        title: "أوعية العملات مطلوبة",
+        description: "الخزائن متعددة العملات تتطلب إضافة وعاء عملة واحد على الأقل.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    erpStore.addTreasury(
+      newTreasuryForm.name_ar,
+      newTreasuryForm.type,
+      newTreasuryForm.currency,
+      Number(newTreasuryForm.balance),
+      newTreasuryForm.responsible_employee || "أمين الخزينة",
+      newTreasuryForm.containers,
+      newTreasuryForm.linked_to_restaurant,
+      newTreasuryForm.account_code,
+    );
 
     setNewTreasuryForm({
       name_ar: "",
@@ -583,24 +611,88 @@ function AdminDashboard() {
       linked_to_restaurant: false,
       account_code: "",
     });
-    setEditingTreasuryId(null);
     setErpState(erpStore.getState());
-    alert(editingTreasuryId ? "تم تحديث بيانات الحساب!" : "تم إنشاء الخزينة/الحساب الجديد بنجاح!");
+    toast({
+      title: "✅ تم التأسيس بنجاح",
+      description: `تم تأسيس حساب الخزينة الجديد "${newTreasuryForm.name_ar}" برصيد افتتاحي ${Number(newTreasuryForm.balance).toLocaleString()} ${newTreasuryForm.currency} بنجاح.`,
+    });
   };
 
   const handleEditTreasury = (tr: any) => {
     setEditingTreasuryId(tr.id);
-    setNewTreasuryForm({
+    setEditTreasuryForm({
       name_ar: tr.name_ar,
       type: tr.type,
       currency: tr.currency,
-      balance: String(tr.balance),
       responsible_employee: tr.responsible_employee || "",
-      containers: tr.containers || [],
+      containers: tr.containers ? JSON.parse(JSON.stringify(tr.containers)) : [],
       linked_to_restaurant: !!tr.linked_to_restaurant,
       account_code: tr.account_code || "",
     });
-    // Scroll to form or show indicator
+  };
+
+  const handleUpdateTreasurySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editTreasuryForm.name_ar) {
+      toast({
+        title: "اسم الخزينة مطلوب",
+        description: "يرجى إدخال اسم الخزينة العربي للمتابعة.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check currency MULTI validation
+    if (
+      editTreasuryForm.currency === "MULTI" &&
+      (!editTreasuryForm.containers || editTreasuryForm.containers.length === 0)
+    ) {
+      toast({
+        title: "أوعية العملات مطلوبة",
+        description: "الخزائن متعددة العملات تتطلب وعاء عملة واحد على الأقل.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate container currencies and names
+    if (editTreasuryForm.containers && editTreasuryForm.containers.length > 0) {
+      const invalidContainer = editTreasuryForm.containers.find((c) => !c.name || !c.currency);
+      if (invalidContainer) {
+        toast({
+          title: "بيانات الأوعية غير مكتملة",
+          description: "يرجى ملء الاسم وتحديد العملة لكل وعاء تم إنشاؤه.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    // System Integrity: Only 1 treasury can be linked to the restaurant
+    if (editTreasuryForm.linked_to_restaurant) {
+      erpState.treasuries.forEach((t) => {
+        if (t.id !== editingTreasuryId && t.linked_to_restaurant) {
+          erpStore.updateTreasury(t.id, { linked_to_restaurant: false });
+        }
+      });
+    }
+
+    erpStore.updateTreasury(editingTreasuryId, {
+      name_ar: editTreasuryForm.name_ar,
+      type: editTreasuryForm.type,
+      currency: editTreasuryForm.currency,
+      responsible_employee: editTreasuryForm.responsible_employee || "أمين الخزينة",
+      containers: editTreasuryForm.containers,
+      linked_to_restaurant: editTreasuryForm.linked_to_restaurant,
+      account_code: editTreasuryForm.account_code,
+    });
+
+    setEditingTreasuryId(null);
+    setErpState(erpStore.getState());
+    toast({
+      title: "✅ تم تحديث الخزينة بنجاح",
+      description: `تم حفظ جميع تعديلات الخزينة "${editTreasuryForm.name_ar}" دون التأثير على الأرصدة الحالية أو المعاملات التاريخية.`,
+    });
   };
 
   const confirmToggleTreasuryStatus = async () => {
@@ -658,7 +750,7 @@ function AdminDashboard() {
   };
 
   return (
-    <div className="space-y-6 pb-12 text-right" dir="rtl">
+    <div className="space-y-6 pb-12 text-right">
       {/* Upper header with switcher */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-5">
         <div>
@@ -1116,6 +1208,46 @@ function AdminDashboard() {
 
         {/* TAB 2: TREASURY MANAGEMENT & RECONCILIATION */}
         <TabsContent value="treasury" className="space-y-6 mt-4">
+          {/* Top Quick Print & Reports Shortcut Bar */}
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-4 rounded-3xl border border-indigo-500/30 shadow-lg flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3 text-right">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300 shrink-0 shadow-inner">
+                <Printer size={24} />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-black text-base text-white">
+                    مركز طباعة وتقارير وسندات حركة الخزائن والمحاسبة
+                  </h3>
+                  <Badge className="bg-indigo-500/30 text-indigo-200 border-indigo-400/30 text-[10px] font-black">
+                    سندات رسمية & Excel
+                  </Badge>
+                </div>
+                <p className="text-xs text-slate-300 font-semibold">
+                  توليد وطباعة سندات الحركة الرسمية، كشوفات القيود المحاسبية، الجداول التحليلية
+                  للفترات والورديات، وتصدير إكسل
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 shrink-0 w-full md:w-auto">
+              <Button
+                onClick={() => {
+                  setReportInitialTreasuryId("all");
+                  setReportInitialType("document");
+                  setIsTreasuryReportModalOpen(true);
+                }}
+                className="flex-1 md:flex-none bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700 text-white font-black text-xs h-10 px-5 rounded-2xl flex items-center justify-center gap-2 shadow-md hover:shadow-indigo-500/20 active:scale-95 transition"
+              >
+                <Printer size={16} />
+                <span>طباعة وتقارير الخزائن</span>
+                <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-bold">
+                  سندات & Excel
+                </span>
+              </Button>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
               {/* Active Treasuries List */}
@@ -1256,15 +1388,17 @@ function AdminDashboard() {
                                 variant="outline"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setSelectedTreasuryForDetails(tr);
+                                  setReportInitialTreasuryId(tr.id);
+                                  setReportInitialType("document");
+                                  setIsTreasuryReportModalOpen(true);
                                 }}
-                                className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-800 text-xs h-9 font-bold rounded-xl flex items-center gap-1.5 shrink-0"
+                                className="bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-950/80 dark:text-indigo-300 dark:border-indigo-800 text-xs h-9 font-bold rounded-xl flex items-center gap-1.5 shrink-0 transition active:scale-95"
                               >
-                                <FileSpreadsheet
+                                <Printer
                                   size={15}
-                                  className="text-emerald-600 dark:text-emerald-400"
+                                  className="text-indigo-600 dark:text-indigo-400"
                                 />
-                                <span>تصدير Excel</span>
+                                <span>طباعة مستند الحركة</span>
                               </Button>
                             </div>
 
@@ -1336,9 +1470,7 @@ function AdminDashboard() {
                     className="bg-muted/40 p-4 rounded-xl border border-border mt-4 text-right"
                   >
                     <h4 className="font-bold text-xs text-slate-700 block mb-3 text-right">
-                      {editingTreasuryId
-                        ? "تعديل بيانات الحساب:"
-                        : "تأسيس خزينة أو حساب بنكي جديد:"}
+                      تأسيس خزينة أو حساب بنكي جديد:
                     </h4>
                     <form
                       onSubmit={handleAddTreasury}
@@ -1426,7 +1558,6 @@ function AdminDashboard() {
                         <Label className="text-[10px] font-bold">الرصيد الافتتاحي</Label>
                         <Input
                           type="number"
-                          disabled={!!editingTreasuryId}
                           className="mt-1 h-8 text-xs font-bold text-right"
                           value={newTreasuryForm.balance}
                           onChange={(e) =>
@@ -1496,7 +1627,6 @@ function AdminDashboard() {
                               type="number"
                               placeholder="الرصيد الافتتاحي"
                               className="h-8 text-xs font-bold text-right"
-                              disabled={!!editingTreasuryId}
                               value={cnt.balance}
                               onChange={(e) => {
                                 const newArr = [...newTreasuryForm.containers];
@@ -1544,28 +1674,8 @@ function AdminDashboard() {
 
                       <div className="flex gap-2 sm:col-span-5">
                         <Button type="submit" size="sm" className="flex-1 font-bold h-8 text-xs">
-                          {editingTreasuryId ? "تحديث البيانات" : "تأكيد التأسيس"}
+                          تأكيد التأسيس
                         </Button>
-                        {editingTreasuryId && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setEditingTreasuryId(null);
-                              setNewTreasuryForm({
-                                name_ar: "",
-                                type: "cash",
-                                currency: "EGP",
-                                balance: "0",
-                                responsible_employee: "",
-                              });
-                            }}
-                            className="font-bold h-8 text-xs"
-                          >
-                            إلغاء
-                          </Button>
-                        )}
                       </div>
                     </form>
                   </div>
@@ -1957,12 +2067,22 @@ function AdminDashboard() {
         logs={erpState.auditLogs || []}
       />
 
+      {/* TREASURY REPORTING & MOVEMENT DOCUMENT CENTER MODAL */}
+      <TreasuryReportModal
+        isOpen={isTreasuryReportModalOpen}
+        onClose={() => setIsTreasuryReportModalOpen(false)}
+        initialTreasuryId={reportInitialTreasuryId}
+        initialReportType={reportInitialType}
+        treasuries={erpState.treasuries.filter(
+          (t) => t.branch_id === currentBranch.id && !t.deleted,
+        )}
+        transactions={erpState.treasuryTransactions}
+        currentBranch={currentBranch}
+      />
+
       {/* TREASURY OPEN/CLOSE CONFIRMATION MODAL */}
       {treasuryToggleStatusDialog && (
-        <div
-          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 text-right"
-          dir="rtl"
-        >
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 text-right">
           <div className="bg-card border border-border text-card-foreground rounded-2xl w-full max-w-lg p-6 flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200 gap-5">
             <div className="flex items-center justify-between gap-3 border-b border-border pb-3">
               <div className="flex items-center gap-2">
@@ -2095,10 +2215,7 @@ function AdminDashboard() {
 
       {/* TREASURY DELETE CONFIRMATION MODAL */}
       {treasuryToDelete && (
-        <div
-          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 text-right"
-          dir="rtl"
-        >
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 text-right">
           <div className="bg-card border border-border text-card-foreground rounded-2xl w-full max-w-lg p-6 flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200 gap-5">
             <div className="flex items-center justify-between gap-3 border-b border-border pb-3">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
@@ -2196,6 +2313,324 @@ function AdminDashboard() {
         </div>
       )}
 
+      {/* TREASURY EDIT POPUP/MODAL */}
+      {editingTreasuryId && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 text-right overflow-y-auto">
+          <div className="bg-card border border-border text-card-foreground rounded-2xl w-full max-w-2xl my-8 p-6 flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200 gap-5 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between gap-3 border-b border-border pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center shrink-0">
+                  <Wallet size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-foreground">
+                    تعديل بيانات حساب الخزينة أو البنك
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5 font-sans">
+                    تحديث الاسم، المسؤول عن العهدة، الربط المحاسبي، وأوعية العملات بأمان
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-full hover:bg-muted"
+                onClick={() => setEditingTreasuryId(null)}
+              >
+                <X size={18} />
+              </Button>
+            </div>
+
+            <form onSubmit={handleUpdateTreasurySubmit} className="space-y-5">
+              {/* Alert note: accounting safety */}
+              <div className="bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/50 p-3.5 rounded-xl flex items-start gap-2.5 text-xs text-blue-800 dark:text-blue-300">
+                <span className="shrink-0 mt-0.5 font-bold text-base">ℹ️</span>
+                <p className="leading-relaxed font-semibold">
+                  <strong>تنبيه محاسبي آمن:</strong> الحركات المالية والقيود التاريخية لن تتأثر بهذا
+                  التعديل. لحماية سلامة الميزانية العمومية والتقارير المالية السابقة، لا يمكن تغيير
+                  الرصيد الافتراحي للخزينة بعد التأسيس إلا من خلال سند تسوية أو جرد محاسبي.
+                </p>
+              </div>
+
+              {/* Group 1: Basic details */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider border-b border-border pb-1">
+                  البيانات الأساسية للحساب والعهد
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5 text-right">
+                    <Label
+                      htmlFor="edit-name-ar"
+                      className="text-xs font-bold flex items-center gap-1"
+                    >
+                      <span>اسم الحساب / الخزينة *</span>
+                    </Label>
+                    <Input
+                      id="edit-name-ar"
+                      className="h-9 text-xs font-bold text-right border-slate-200 dark:border-slate-800 focus-visible:ring-indigo-500"
+                      value={editTreasuryForm.name_ar}
+                      onChange={(e) =>
+                        setEditTreasuryForm((s) => ({ ...s, name_ar: e.target.value }))
+                      }
+                      placeholder="مثال: خزينة المشروبات، دولار"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1.5 text-right">
+                    <Label
+                      htmlFor="edit-responsible"
+                      className="text-xs font-bold flex items-center gap-1"
+                    >
+                      <span>أمين الخزينة / المسؤول</span>
+                    </Label>
+                    <Input
+                      id="edit-responsible"
+                      className="h-9 text-xs font-bold text-right border-slate-200 dark:border-slate-800 focus-visible:ring-indigo-500"
+                      value={editTreasuryForm.responsible_employee}
+                      onChange={(e) =>
+                        setEditTreasuryForm((s) => ({
+                          ...s,
+                          responsible_employee: e.target.value,
+                        }))
+                      }
+                      placeholder="مثال: أحمد علي"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Group 2: Account options */}
+              <div className="space-y-3 pt-1">
+                <h4 className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider border-b border-border pb-1">
+                  خصائص الحساب والربط المالي والعملة
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5 text-right">
+                    <Label className="text-xs font-bold">نوع الحساب والعملة الرئيسية</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <select
+                        className="h-9 rounded-md border border-slate-200 dark:border-slate-800 bg-background px-2 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500 text-right"
+                        value={editTreasuryForm.type}
+                        onChange={(e) =>
+                          setEditTreasuryForm((s) => ({
+                            ...s,
+                            type: e.target.value as "cash" | "bank",
+                          }))
+                        }
+                      >
+                        <option value="cash">💵 كاش / صندوق</option>
+                        <option value="bank">🏦 بنكي / حساب جاري</option>
+                      </select>
+                      <select
+                        className="h-9 rounded-md border border-slate-200 dark:border-slate-800 bg-background px-2 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500 text-right"
+                        value={editTreasuryForm.currency}
+                        onChange={(e) =>
+                          setEditTreasuryForm((s) => ({ ...s, currency: e.target.value }))
+                        }
+                      >
+                        <option value="EGP">EGP (جنيه مصري)</option>
+                        <option value="USD">USD (دولار أمريكي)</option>
+                        <option value="SSP">SSP (جنيه جنوب سوداني)</option>
+                        <option value="MULTI">MULTI (متعدد العملات)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 text-right">
+                    <Label htmlFor="edit-account-code" className="text-xs font-bold">
+                      الربط بدليل الحسابات أوراكل (Account Mapping)
+                    </Label>
+                    <select
+                      id="edit-account-code"
+                      className="w-full h-9 rounded-md border border-slate-200 dark:border-slate-800 bg-background px-2 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500 text-right"
+                      value={editTreasuryForm.account_code || ""}
+                      onChange={(e) =>
+                        setEditTreasuryForm((s) => ({ ...s, account_code: e.target.value }))
+                      }
+                    >
+                      <option value="">-- بدون ربط --</option>
+                      {oracleAccounts
+                        .filter((acc) => acc.type === "asset" || acc.type === "liability")
+                        .map((acc) => (
+                          <option key={acc.code} value={acc.code}>
+                            {acc.code} - {acc.name_ar}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Group 3: Restaurant sales mapping */}
+              <div className="pt-1">
+                <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 flex items-center justify-between gap-3 shadow-2xs">
+                  <div className="flex gap-2.5 items-start text-right">
+                    <span className="text-base">🛎️</span>
+                    <div>
+                      <Label
+                        htmlFor="edit-linked-to-restaurant"
+                        className="text-xs font-extrabold cursor-pointer block text-foreground"
+                      >
+                        ربط هذه الخزينة بنقاط بيع المطعم (POS)
+                      </Label>
+                      <span className="text-[11px] text-muted-foreground block mt-0.5">
+                        عند التفعيل، سيتم ترحيل مبيعات المطعم اليومية ومرتجعات الكاشير الفورية
+                        تلقائياً إلى هذه الخزينة.
+                      </span>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    id="edit-linked-to-restaurant"
+                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-700 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
+                    checked={editTreasuryForm.linked_to_restaurant}
+                    onChange={(e) =>
+                      setEditTreasuryForm((s) => ({
+                        ...s,
+                        linked_to_restaurant: e.target.checked,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* Group 4: Currency containers */}
+              <div className="space-y-3 pt-1">
+                <div className="flex justify-between items-center bg-slate-100 dark:bg-slate-800 p-2.5 rounded-xl border border-border">
+                  <div className="flex items-center gap-1.5 text-right">
+                    <Coins size={16} className="text-indigo-600 dark:text-indigo-400" />
+                    <Label className="text-xs font-extrabold">
+                      أوعية صناديق العملات (Currency Containers)
+                    </Label>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-[10px] font-black border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50"
+                    onClick={() => {
+                      setEditTreasuryForm((s) => ({
+                        ...s,
+                        containers: [
+                          ...s.containers,
+                          {
+                            id: "cnt-" + Date.now(),
+                            name: "",
+                            currency: "USD",
+                            balance: 0,
+                          },
+                        ],
+                      }));
+                    }}
+                  >
+                    + إضافة وعاء عملة
+                  </Button>
+                </div>
+
+                {editTreasuryForm.containers.length === 0 ? (
+                  <div className="text-center p-6 border border-dashed border-border rounded-xl bg-slate-50/50 dark:bg-slate-900/30 text-muted-foreground text-xs font-medium">
+                    لا توجد أوعية عملات مضافة لهذا الحساب حالياً. يمكنك تقسيم الخزينة إلى صناديق
+                    متعددة لتسهيل الفرز والجرد.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                    {editTreasuryForm.containers.map((cnt, idx) => (
+                      <div
+                        key={cnt.id}
+                        className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center bg-muted/40 hover:bg-muted/60 p-2.5 rounded-xl border border-border/80 text-right"
+                      >
+                        <div className="sm:col-span-4 text-right">
+                          <Label className="text-[10px] text-muted-foreground font-bold block mb-1">
+                            اسم الوعاء
+                          </Label>
+                          <Input
+                            placeholder="مثال: كاش جنوب سوداني"
+                            className="h-8 text-xs font-bold text-right border-slate-200 dark:border-slate-800"
+                            value={cnt.name}
+                            onChange={(e) => {
+                              const newArr = [...editTreasuryForm.containers];
+                              newArr[idx].name = e.target.value;
+                              setEditTreasuryForm((s) => ({ ...s, containers: newArr }));
+                            }}
+                            required
+                          />
+                        </div>
+                        <div className="sm:col-span-3 text-right">
+                          <Label className="text-[10px] text-muted-foreground font-bold block mb-1">
+                            عملة الوعاء
+                          </Label>
+                          <select
+                            className="w-full h-8 rounded-md border border-slate-200 dark:border-slate-800 bg-background px-1.5 text-xs font-bold text-right focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                            value={cnt.currency}
+                            onChange={(e) => {
+                              const newArr = [...editTreasuryForm.containers];
+                              newArr[idx].currency = e.target.value;
+                              setEditTreasuryForm((s) => ({ ...s, containers: newArr }));
+                            }}
+                          >
+                            <option value="SSP">SSP</option>
+                            <option value="USD">USD</option>
+                            <option value="EGP">EGP</option>
+                            <option value="EUR">EUR</option>
+                          </select>
+                        </div>
+                        <div className="sm:col-span-3 text-right">
+                          <Label className="text-[10px] text-muted-foreground font-bold block mb-1">
+                            الرصيد الحالي
+                          </Label>
+                          <Input
+                            type="number"
+                            disabled
+                            title="لا يمكن تعديل الرصيد مباشرة لأسباب محاسبية"
+                            className="h-8 text-xs font-bold text-right bg-slate-100 dark:bg-slate-900 cursor-not-allowed"
+                            value={cnt.balance}
+                          />
+                        </div>
+                        <div className="sm:col-span-2 pt-4">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-full text-xs font-bold text-destructive hover:bg-destructive/10 hover:text-destructive flex items-center justify-center gap-1"
+                            onClick={() => {
+                              const newArr = [...editTreasuryForm.containers];
+                              newArr.splice(idx, 1);
+                              setEditTreasuryForm((s) => ({ ...s, containers: newArr }));
+                            }}
+                          >
+                            <Trash2 size={13} />
+                            <span>حذف</span>
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-border mt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-xl font-bold text-xs h-9"
+                  onClick={() => setEditingTreasuryId(null)}
+                >
+                  إلغاء التعديل
+                </Button>
+                <Button
+                  type="submit"
+                  className="rounded-xl font-black text-xs h-9 bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5 shadow-sm px-5 animate-none transition active:scale-95"
+                >
+                  <Save size={15} />
+                  <span>حفظ وتحديث البيانات</span>
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* FULL-SCREEN TREASURY INQUIRY & ACCOUNTING SYSTEMS VIEW */}
       {selectedTreasuryForDetails && (
         <div className="fixed inset-0 z-50 bg-background text-foreground flex flex-col w-screen h-screen overflow-hidden animate-in fade-in duration-200">
@@ -2257,6 +2692,19 @@ function AdminDashboard() {
             </div>
 
             <div className="flex items-center gap-2.5 self-end md:self-center">
+              <Button
+                size="sm"
+                onClick={() => {
+                  setReportInitialTreasuryId(selectedTreasuryForDetails.id);
+                  setReportInitialType("document");
+                  setIsTreasuryReportModalOpen(true);
+                }}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs h-9 px-3.5 rounded-xl flex items-center gap-1.5 shadow-sm transition active:scale-95"
+              >
+                <Printer size={15} />
+                <span>طباعة مستند الحركة</span>
+              </Button>
+
               <Link
                 to="/cashier-treasury"
                 target="_blank"
@@ -2760,7 +3208,19 @@ function AdminDashboard() {
                       </div>
 
                       {/* Header Actions for Tab Exports */}
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setReportInitialTreasuryId(selectedTreasuryForDetails.id);
+                            setReportInitialType("document");
+                            setIsTreasuryReportModalOpen(true);
+                          }}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs h-9 px-3.5 rounded-xl flex items-center gap-1.5 shadow-sm transition active:scale-95"
+                        >
+                          <Printer size={15} />
+                          <span>طباعة مستند الحركة (A4)</span>
+                        </Button>
                         <Button
                           size="sm"
                           onClick={exportJournalEntriesExcel}
@@ -2772,7 +3232,7 @@ function AdminDashboard() {
                         <Button
                           size="sm"
                           onClick={exportLedgerTableExcel}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs h-9 px-3.5 rounded-xl flex items-center gap-1.5 shadow-sm"
+                          className="bg-slate-800 hover:bg-slate-700 text-white font-black text-xs h-9 px-3.5 rounded-xl flex items-center gap-1.5 shadow-sm"
                         >
                           <FileSpreadsheet size={15} />
                           <span>تصدير الجداول المحاسبية (Excel)</span>

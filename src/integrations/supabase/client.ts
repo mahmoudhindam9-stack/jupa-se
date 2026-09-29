@@ -82,16 +82,19 @@ function createSupabaseClient() {
     (typeof process !== "undefined" && process.env
       ? process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
       : undefined) ||
-    "https://myqtvbfibvgxkqwxvuru.supabase.co";
+    "https://placeholder.supabase.co";
 
   const SUPABASE_PUBLISHABLE_KEY =
     (typeof import.meta !== "undefined" && import.meta.env
-      ? import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+      ? import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY
       : undefined) ||
     (typeof process !== "undefined" && process.env
-      ? process.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY
+      ? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+        process.env.SUPABASE_PUBLISHABLE_KEY ||
+        process.env.VITE_SUPABASE_ANON_KEY ||
+        process.env.SUPABASE_ANON_KEY
       : undefined) ||
-    "sb_publishable_srgqLn2ZvysGKh47yCQ0Kg_IW02yjDf";
+    "placeholder";
 
   if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
     const missing = [

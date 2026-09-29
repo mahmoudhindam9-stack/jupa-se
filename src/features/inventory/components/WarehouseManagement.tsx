@@ -941,7 +941,7 @@ export const WarehouseManagement: React.FC = () => {
 
       {/* View Document Dialog for Printing */}
       <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
-        <DialogContent className="sm:max-w-[600px] text-right dir-rtl print:max-w-none print:w-full print:h-full print:m-0 print:border-none print:shadow-none">
+        <DialogContent className="sm:max-w-[600px] text-right print:max-w-none print:w-full print:h-full print:m-0 print:border-none print:shadow-none">
           <DialogHeader className="print:hidden">
             <DialogTitle>مستند تحويل مخزني</DialogTitle>
           </DialogHeader>

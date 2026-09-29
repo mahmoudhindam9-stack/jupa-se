@@ -51,7 +51,27 @@ import {
   Server,
   BookOpen,
   AlertTriangle,
+  Github,
+  Sparkles,
+  ExternalLink,
+  ArrowUpCircle,
+  GitBranch,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import {
+  CURRENT_VERSION,
+  APP_RELEASE_NAME,
+  BUILD_DATE,
+  DEFAULT_GITHUB_REPO,
+  DEFAULT_GITHUB_REPO_URL,
+  parseGitHubRepo,
+} from "@/shared/config/version";
+import {
+  githubUpdateService,
+  GitHubUpdateInfo,
+  UpdateSettings,
+} from "@/shared/services/githubUpdateService";
 
 export const Route = createFileRoute("/admin/system-update")({
   head: () => ({ meta: [{ title: "تحديث السيستم وحزمة أكسس" }] }),
@@ -62,8 +82,6 @@ function SystemUpdatePage() {
   const { toast } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
-
-  
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const accessPackageInputRef = useRef<HTMLInputElement>(null);
@@ -80,6 +98,107 @@ function SystemUpdatePage() {
   const [showConfirmDownloadAccess, setShowConfirmDownloadAccess] = useState(false);
   const [showConfirmSystemUpdate, setShowConfirmSystemUpdate] = useState(false);
   const [showSchemaDialog, setShowSchemaDialog] = useState(false);
+
+  // GitHub update state
+  const [updateInfo, setUpdateInfo] = useState<GitHubUpdateInfo>(() =>
+    githubUpdateService.getStatus(),
+  );
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [isApplyingUpdate, setIsApplyingUpdate] = useState(false);
+  const [updateSettings, setUpdateSettings] = useState<UpdateSettings>(() =>
+    githubUpdateService.getSettings(),
+  );
+  const [repoInput, setRepoInput] = useState(updateSettings.repo);
+
+  useEffect(() => {
+    const unsub = githubUpdateService.subscribe((info) => {
+      setUpdateInfo(info);
+      setIsCheckingUpdate(githubUpdateService.getIsChecking());
+    });
+    return unsub;
+  }, []);
+
+  const handleCheckGitHubUpdates = async () => {
+    setIsCheckingUpdate(true);
+    toast({
+      title: "جاري فحص التحديثات من GitHub...",
+      description: `الاتصال بالمستودع ${updateSettings.repo} للتحقق من وجود إصدار أعلى...`,
+    });
+    try {
+      const res = await githubUpdateService.checkForUpdates(true);
+      if (res.hasUpdate) {
+        toast({
+          title: "🎉 يوجد تحديث جديد متاح!",
+          description: `النسخة الجديدة: v${res.latestVersion} (النسخة المثبتة حالياً: v${res.currentVersion})`,
+        });
+      } else if (res.error) {
+        toast({
+          title: "تنبيه أثناء فحص GitHub",
+          description: res.error,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "النظام محدث بالكامل 🟢",
+          description: `أنت تستخدم أحدث إصدار متوفر (${CURRENT_VERSION}) ولا توجد تحديثات معلقة.`,
+        });
+      }
+    } catch (e: any) {
+      toast({
+        title: "خطأ في الاتصال بـ GitHub",
+        description: e.message || "تعذر فحص التحديثات",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  };
+
+  const handleApplyGitHubUpdate = async () => {
+    setIsApplyingUpdate(true);
+    toast({
+      title: "جاري تثبيت وتطبيق التحديث...",
+      description: "مسح الذاكرة المؤقتة وإعادة مزامنة النظام وتحديث الأكواد...",
+    });
+    const res = await githubUpdateService.performUpdate();
+    if (res.success) {
+      toast({
+        title: "تم التحديث بنجاح! 🟢",
+        description: res.message,
+      });
+    } else {
+      setIsApplyingUpdate(false);
+      toast({
+        title: "فشل التحديث",
+        description: res.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSaveRepoSettings = () => {
+    const trimmed = repoInput.trim();
+    if (!trimmed) return;
+    const parsed = parseGitHubRepo(trimmed);
+    const updated = githubUpdateService.saveSettings({ repo: parsed });
+    setUpdateSettings(updated);
+    setRepoInput(parsed);
+    toast({
+      title: "تم ربط مستودع GitHub بنجاح 🟢",
+      description: `المستودع المستهدف المربوط: ${parsed}`,
+    });
+  };
+
+  const handleToggleAutoCheck = (enabled: boolean) => {
+    const updated = githubUpdateService.saveSettings({ autoCheck: enabled });
+    setUpdateSettings(updated);
+    toast({
+      title: enabled ? "تم تفعيل التحديث التلقائي" : "تم تعطيل التحديث التلقائي",
+      description: enabled
+        ? "سيقوم النظام بفحص التحديثات من GitHub تلقائياً عند فتح النظام في الخلفية"
+        : "يمكنك دائماً البحث عن التحديثات يدوياً بالضغط على زر البحث عن التحديثات",
+    });
+  };
 
   // Store state snapshot for stats
   const [erpState, setErpState] = useState(erpStore.getState());
@@ -456,7 +575,7 @@ function SystemUpdatePage() {
   ];
 
   return (
-    <div className="space-y-6 pb-12 text-right font-cairo px-2 sm:px-4 md:px-6" dir="rtl">
+    <div className="space-y-6 pb-12 text-right font-cairo px-2 sm:px-4 md:px-6">
       {/* Page Navigation Tabs */}
       <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full space-y-6">
         <TabsList>
@@ -502,7 +621,27 @@ function SystemUpdatePage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+          <div className="flex items-center gap-2.5 w-full md:w-auto justify-between md:justify-end flex-wrap">
+            <div className="flex items-center gap-1.5 px-3 py-2 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-900 rounded-xl text-xs font-bold">
+              <span className="text-muted-foreground">رقم النسخة:</span>
+              <Badge
+                variant="secondary"
+                className="font-mono text-purple-700 dark:text-purple-300 bg-white dark:bg-purple-900 font-black text-xs px-2 py-0.5"
+              >
+                v{CURRENT_VERSION}
+              </Badge>
+            </div>
+
+            <Button
+              onClick={handleCheckGitHubUpdates}
+              disabled={isCheckingUpdate}
+              variant="outline"
+              className="gap-2 font-bold text-xs sm:text-sm border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-400 bg-purple-50/50 hover:bg-purple-100 dark:bg-purple-950/20 dark:hover:bg-purple-900/40 h-11 rounded-xl shrink-0"
+            >
+              <RefreshCw size={16} className={isCheckingUpdate ? "animate-spin" : ""} />
+              {isCheckingUpdate ? "جاري الفحص..." : "البحث عن تحديثات"}
+            </Button>
+
             <Button
               onClick={() => setDevModeOpen(true)}
               variant="outline"
@@ -517,6 +656,229 @@ function SystemUpdatePage() {
         {/* TAB 1: SYSTEM UPDATE & BACKUP */}
         <TabsContent value="system" className="space-y-6 mt-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Card 0: System Version & GitHub Automatic Update (إصدار النظام والتحديث التلقائي من GitHub) */}
+            <Card className="col-span-1 md:col-span-2 border-border/80 shadow-sm rounded-2xl overflow-hidden hover:shadow-md transition-shadow bg-card">
+              <CardHeader className="bg-gradient-to-r from-purple-500/10 via-indigo-500/5 to-transparent border-b border-border/40 pb-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-lg sm:text-xl font-black text-foreground flex items-center gap-2">
+                      <Github size={24} className="text-purple-600 dark:text-purple-400" />
+                      إصدار النظام والتحديث التلقائي من GitHub
+                    </CardTitle>
+                    <CardDescription className="font-bold text-xs sm:text-sm text-muted-foreground mt-1">
+                      متابعة رقم النسخة الحالية وفحص التحديثات والمزامنة المباشرة مع مستودع GitHub
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className="px-3 py-1 text-xs font-bold gap-1.5 border-purple-300 dark:border-purple-800 text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40"
+                    >
+                      <Sparkles size={13} className="text-purple-600" />
+                      النسخة المثبتة: v{CURRENT_VERSION}
+                    </Badge>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 sm:p-6 space-y-6">
+                {/* Metrics Row */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-purple-50/60 dark:bg-purple-950/20 border border-purple-200/80 dark:border-purple-900/40 p-4 rounded-xl space-y-1">
+                    <div className="text-xs font-bold text-muted-foreground flex items-center gap-1.5">
+                      <GitBranch size={14} className="text-purple-600" />
+                      رقم النسخة الحالية
+                    </div>
+                    <div className="text-2xl font-black text-foreground font-mono">
+                      v{CURRENT_VERSION}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground font-medium">
+                      تاريخ الإصدار: {BUILD_DATE}
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-900/40 p-4 rounded-xl space-y-1">
+                    <div className="text-xs font-bold text-muted-foreground flex items-center gap-1.5">
+                      <Github size={14} className="text-blue-600" />
+                      أحدث نسخة في GitHub
+                    </div>
+                    <div className="text-2xl font-black text-foreground font-mono">
+                      v{updateInfo.latestVersion || CURRENT_VERSION}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground font-medium">
+                      {updateInfo.checkedAt
+                        ? `آخر فحص: ${new Date(updateInfo.checkedAt).toLocaleTimeString("ar-EG")}`
+                        : "لم يتم الفحص بعد"}
+                    </div>
+                  </div>
+
+                  <div
+                    className={`p-4 rounded-xl border space-y-1 ${
+                      updateInfo.hasUpdate
+                        ? "bg-amber-50/80 dark:bg-amber-950/30 border-amber-300 dark:border-amber-800"
+                        : "bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800"
+                    }`}
+                  >
+                    <div className="text-xs font-bold text-muted-foreground flex items-center gap-1.5">
+                      <Activity
+                        size={14}
+                        className={updateInfo.hasUpdate ? "text-amber-600" : "text-emerald-600"}
+                      />
+                      حالة التحديث
+                    </div>
+                    <div
+                      className={`text-base font-black flex items-center gap-1.5 ${
+                        updateInfo.hasUpdate
+                          ? "text-amber-700 dark:text-amber-400"
+                          : "text-emerald-700 dark:text-emerald-400"
+                      }`}
+                    >
+                      {updateInfo.hasUpdate ? (
+                        <>
+                          <ArrowUpCircle size={18} />
+                          يوجد إصدار أحدث متاح!
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 size={18} />
+                          النظام محدث بالكامل 🟢
+                        </>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground font-medium">
+                      {updateInfo.hasUpdate
+                        ? `الإصدار الجديد: v${updateInfo.latestVersion}`
+                        : "لا توجد تحديثات معلقة"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* If Update Available Banner */}
+                {updateInfo.hasUpdate && (
+                  <div className="bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-amber-500/15 border-2 border-amber-500/40 rounded-2xl p-4 sm:p-5 space-y-3">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div>
+                        <h4 className="font-black text-sm sm:text-base text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                          <Sparkles size={18} className="text-amber-600" />
+                          إصدار جديد متاح على GitHub: v{updateInfo.latestVersion} (الإصدار الحالي: v
+                          {CURRENT_VERSION})
+                        </h4>
+                        <p className="text-xs text-amber-800 dark:text-amber-300 font-medium mt-1">
+                          {updateInfo.releaseNotes ||
+                            "يتضمن هذا التحديث أحدث التحسينات ومزامنة الأكواد وقواعد البيانات."}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        {updateInfo.releaseUrl && (
+                          <a
+                            href={updateInfo.releaseUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline font-bold px-2 py-1"
+                          >
+                            <ExternalLink size={13} />
+                            عرض المستودع
+                          </a>
+                        )}
+                        <Button
+                          onClick={handleApplyGitHubUpdate}
+                          disabled={isApplyingUpdate}
+                          className="font-black text-xs sm:text-sm bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-md gap-2"
+                        >
+                          <RefreshCw size={15} className={isApplyingUpdate ? "animate-spin" : ""} />
+                          {isApplyingUpdate
+                            ? "جاري تثبيت التحديث..."
+                            : `تحديث النظام الآن إلى v${updateInfo.latestVersion}`}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Primary Button to Search for Updates in Developer Options */}
+                <div className="bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 p-4 sm:p-5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <h4 className="font-black text-sm text-foreground flex items-center gap-2">
+                      <RefreshCw size={16} className="text-purple-600" />
+                      البحث عن التحديثات المباشرة من GitHub
+                    </h4>
+                    <p className="text-xs text-muted-foreground">
+                      يقوم بالاتصال المباشر بمستودع GitHub للتحقق مما إذا كان هناك إصدار أحدث جاهز
+                      للترقية.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleCheckGitHubUpdates}
+                    disabled={isCheckingUpdate}
+                    className="w-full sm:w-auto gap-2 font-black shadow-md bg-purple-600 hover:bg-purple-700 text-white text-xs sm:text-sm h-11 px-6 rounded-xl touch-manipulation shrink-0"
+                  >
+                    <RefreshCw size={16} className={isCheckingUpdate ? "animate-spin" : ""} />
+                    {isCheckingUpdate ? "جاري فحص GitHub..." : "البحث عن التحديثات الآن"}
+                  </Button>
+                </div>
+
+                {/* Settings & Configurations */}
+                <div className="border-t border-border/60 pt-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-right">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-foreground block">
+                      مستودع GitHub المستهدف (رابط Clone أو مالك/مستودع):
+                    </label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={repoInput}
+                        onChange={(e) => setRepoInput(e.target.value)}
+                        placeholder="https://github.com/mahmoudhindam9-stack/jupa-se.git"
+                        className="font-mono text-xs h-10 rounded-xl"
+                        dir="ltr"
+                      />
+                      <Button
+                        onClick={handleSaveRepoSettings}
+                        variant="secondary"
+                        size="sm"
+                        className="h-10 text-xs font-bold shrink-0 rounded-xl"
+                      >
+                        <Save size={14} className="ml-1" />
+                        حفظ
+                      </Button>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5">
+                      <span>
+                        المستودع النشط:{" "}
+                        <strong className="font-mono text-purple-700 dark:text-purple-300 font-bold">
+                          {updateSettings.repo}
+                        </strong>
+                      </span>
+                      <a
+                        href={`https://github.com/${updateSettings.repo}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-blue-600 hover:underline flex items-center gap-1 font-bold text-[11px]"
+                      >
+                        <ExternalLink size={12} />
+                        زيارة المستودع
+                      </a>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 bg-muted/30 p-3 rounded-xl border">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-bold text-xs text-foreground">
+                          التحديث التلقائي عند فتح النظام
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">
+                          التحقق من وجود إصدار أعلى تلقائياً في الخلفية عند فتح التطبيق
+                        </div>
+                      </div>
+                      <Switch
+                        checked={updateSettings.autoCheck}
+                        onCheckedChange={handleToggleAutoCheck}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Card 1: System and Code Updates */}
             <Card className="border-border/70 shadow-sm rounded-2xl overflow-hidden hover:shadow-md transition-shadow">
               <CardHeader className="bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-transparent border-b border-border/40 pb-4">
@@ -945,7 +1307,7 @@ function SystemUpdatePage() {
 
       {/* SQL Schema Preview Dialog */}
       <Dialog open={showSchemaDialog} onOpenChange={setShowSchemaDialog}>
-        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-6 rounded-2xl" dir="rtl">
+        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-6 rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-black text-foreground flex items-center gap-2">
               <FileCode className="text-emerald-600 dark:text-emerald-400" size={22} />
@@ -984,10 +1346,7 @@ function SystemUpdatePage() {
 
       {/* Dev Mode Dialog */}
       <Dialog open={devModeOpen} onOpenChange={setDevModeOpen}>
-        <DialogContent
-          className="max-w-[95vw] sm:max-w-[90vw] w-full h-[90vh] flex flex-col p-0 gap-0 rounded-2xl overflow-hidden"
-          dir="rtl"
-        >
+        <DialogContent className="max-w-[95vw] sm:max-w-[90vw] w-full h-[90vh] flex flex-col p-0 gap-0 rounded-2xl overflow-hidden">
           <DialogHeader className="p-4 border-b shrink-0 flex flex-row items-center justify-between bg-background">
             <div>
               <DialogTitle className="text-lg font-bold flex items-center gap-2">
@@ -999,7 +1358,23 @@ function SystemUpdatePage() {
                 {Object.keys(editedStrings).length}
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge
+                variant="outline"
+                className="font-mono text-xs font-bold border-purple-300 text-purple-700 bg-purple-50 dark:bg-purple-950/40 dark:border-purple-800 dark:text-purple-300"
+              >
+                v{CURRENT_VERSION}
+              </Badge>
+              <Button
+                onClick={handleCheckGitHubUpdates}
+                disabled={isCheckingUpdate}
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs font-bold border-purple-200 text-purple-700 hover:bg-purple-50 dark:border-purple-800 dark:text-purple-300"
+              >
+                <RefreshCw size={13} className={isCheckingUpdate ? "animate-spin" : ""} />
+                {isCheckingUpdate ? "جاري الفحص..." : "البحث عن تحديثات"}
+              </Button>
               <Button
                 onClick={() => setDevModeOpen(false)}
                 variant="outline"
@@ -1043,7 +1418,7 @@ function SystemUpdatePage() {
 
       {/* Confirmation Dialog 1: Download Access Package */}
       <AlertDialog open={showConfirmDownloadAccess} onOpenChange={setShowConfirmDownloadAccess}>
-        <AlertDialogContent dir="rtl" className="font-cairo max-w-md">
+        <AlertDialogContent className="font-cairo max-w-md">
           <AlertDialogHeader className="text-right">
             <AlertDialogTitle className="text-lg font-black text-foreground flex items-center gap-2">
               <FileSpreadsheet className="text-emerald-600 dark:text-emerald-400" size={22} />
@@ -1081,7 +1456,7 @@ function SystemUpdatePage() {
 
       {/* Confirmation Dialog 2: System Update */}
       <AlertDialog open={showConfirmSystemUpdate} onOpenChange={setShowConfirmSystemUpdate}>
-        <AlertDialogContent dir="rtl" className="font-cairo max-w-md">
+        <AlertDialogContent className="font-cairo max-w-md">
           <AlertDialogHeader className="text-right">
             <AlertDialogTitle className="text-lg font-black text-foreground flex items-center gap-2">
               <RefreshCw className="text-amber-600 dark:text-amber-400" size={22} />

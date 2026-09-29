@@ -247,7 +247,7 @@ function OrdersPage() {
   })();
 
   return (
-    <div className="p-6 space-y-6 font-cairo bg-slate-50 min-h-screen" dir="rtl">
+    <div className="p-6 space-y-6 font-cairo bg-slate-50 min-h-screen">
       <BackToRestaurantButton />
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-3xl shadow-xs border border-border/60">
@@ -350,7 +350,7 @@ function OrdersPage() {
               حذف جميع الطلبات
             </Button>
           </AlertDialogTrigger>
-          <AlertDialogContent className="text-right rounded-3xl font-cairo" dir="rtl">
+          <AlertDialogContent className="text-right rounded-3xl font-cairo">
             <AlertDialogHeader>
               <AlertDialogTitle className="font-black text-right">
                 هل أنت متأكد من حذف جميع الطلبات؟
@@ -485,7 +485,7 @@ function OrdersPage() {
       {/* Details Modal */}
       {selectedOrder && (
         <Dialog open={!!selectedOrder} onOpenChange={(open) => !open && setSelectedOrder(null)}>
-          <DialogContent className="max-w-md text-right rounded-3xl font-cairo" dir="rtl">
+          <DialogContent className="max-w-md text-right rounded-3xl font-cairo">
             <DialogHeader>
               <DialogTitle className="text-right text-lg font-black block border-b pb-2">
                 تفاصيل الطلب #{String(selectedOrder.order_number || selectedOrder.id).slice(-6)}
@@ -549,7 +549,7 @@ function OrdersPage() {
       {/* Edit Modal */}
       {editingOrder && (
         <Dialog open={!!editingOrder} onOpenChange={(open) => !open && setEditingOrder(null)}>
-          <DialogContent className="max-w-md text-right rounded-3xl font-cairo" dir="rtl">
+          <DialogContent className="max-w-md text-right rounded-3xl font-cairo">
             <DialogHeader>
               <DialogTitle className="text-right text-lg font-black block border-b pb-2">
                 تعديل الطلب #{String(editingOrder.order_number || editingOrder.id).slice(-6)}

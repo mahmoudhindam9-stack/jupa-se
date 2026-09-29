@@ -278,7 +278,7 @@ export function SupplierManagement() {
   };
 
   return (
-    <div className="space-y-6 text-right" dir="rtl">
+    <div className="space-y-6 text-right">
       {/* Top Header Card */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-muted/20 p-5 rounded-2xl border border-border/50">
         <div>
@@ -599,7 +599,7 @@ export function SupplierManagement() {
         open={createdNotification.open}
         onOpenChange={(open) => setCreatedNotification((prev) => ({ ...prev, open }))}
       >
-        <DialogContent className="max-w-md text-right rounded-2xl" dir="rtl">
+        <DialogContent className="max-w-md text-right rounded-2xl">
           <DialogHeader>
             <div className="flex items-center gap-3 mb-2">
               <div className="h-10 w-10 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
@@ -651,7 +651,7 @@ export function SupplierManagement() {
         open={txModal.open}
         onOpenChange={(open) => setTxModal((prev) => ({ ...prev, open }))}
       >
-        <DialogContent className="max-w-lg text-right rounded-2xl" dir="rtl">
+        <DialogContent className="max-w-lg text-right rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-black flex items-center gap-2">
               <Receipt className="text-primary" size={20} />
@@ -835,7 +835,7 @@ export function SupplierManagement() {
         open={txSuccessResult.open}
         onOpenChange={(open) => setTxSuccessResult((prev) => ({ ...prev, open }))}
       >
-        <DialogContent className="max-w-md text-right rounded-2xl" dir="rtl">
+        <DialogContent className="max-w-md text-right rounded-2xl">
           <DialogHeader>
             <div className="flex items-center gap-3 mb-2">
               <div className="h-10 w-10 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center">

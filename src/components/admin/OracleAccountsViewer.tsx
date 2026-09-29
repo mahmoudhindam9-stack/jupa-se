@@ -213,7 +213,7 @@ export function OracleAccountsViewer() {
   );
 
   return (
-    <div className="space-y-6 animate-in fade-in zoom-in-95 duration-300" dir="rtl">
+    <div className="space-y-6 animate-in fade-in zoom-in-95 duration-300">
       {/* Search Header */}
       <Card className="border-border shadow-sm overflow-hidden relative">
         <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl pointer-events-none"></div>
