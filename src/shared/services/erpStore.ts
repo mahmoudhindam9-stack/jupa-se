@@ -3,6 +3,7 @@ import { Order, MenuItem, InventoryItem } from "../types";
 import { localWarehouseStore } from "../../features/inventory/services/warehouseStore";
 import { inventoryService } from "../../features/inventory/services/inventoryService";
 import { ORACLE_MIGRATION_ACCOUNTS } from "../data/oracleAccounts";
+import { shiftAuditService } from "../../features/shifts/services/shiftAuditService";
 
 export interface Branch {
   id: string;
@@ -2316,33 +2317,26 @@ export class ERPStore {
       this.saveState();
       this.saveToIDB(this.state);
     }
-    // Safeguard: always wipe any stale #5 or #7 shifts or invalid sessions
+    // Clean and validate park shifts: ensure integrity without arbitrary suppression
     if (this.state.parkShifts && this.state.parkShifts.length > 0) {
-      this.state.parkShifts = this.state.parkShifts.filter((s: any) => {
-        const title = String(s.shift_number || "");
-        const autoN = String(s.auto_shift_number || "");
-        const sId = String(s.id || "");
-        return (
-          !title.includes("5") &&
-          !title.includes("7") &&
-          autoN !== "5" &&
-          autoN !== "7" &&
-          !sId.includes("5") &&
-          !sId.includes("7")
-        );
+      const validShifts = this.state.parkShifts.filter((s: any) => {
+        return Boolean(s && s.id && (s.shift_number || s.auto_shift_number));
       });
+      if (validShifts.length !== this.state.parkShifts.length) {
+        shiftAuditService.logShiftAction({
+          shift_id: "cleanup-init",
+          shift_type: "park",
+          shift_number: "فحص التهيئة",
+          action: "FILTER_ANOMALY",
+          details: `تم تنظيف ${this.state.parkShifts.length - validShifts.length} وردية تالفة بدون معرف أو رقم`,
+        });
+      }
+      this.state.parkShifts = validShifts;
+
+      // Ensure active session pointer is valid and open
       if (this.state.parkActiveShift) {
-        const activeTitle = String(this.state.parkActiveShift.shift_number || "");
-        const activeAutoN = String(this.state.parkActiveShift.auto_shift_number || "");
-        const activeId = String(this.state.parkActiveShift.id || "");
-        if (
-          activeTitle.includes("5") ||
-          activeTitle.includes("7") ||
-          activeAutoN === "5" ||
-          activeAutoN === "7" ||
-          activeId.includes("5") ||
-          activeId.includes("7")
-        ) {
+        const activeExists = this.state.parkShifts.some((s) => s.id === this.state.parkActiveShift?.id);
+        if (!activeExists || this.state.parkActiveShift.status !== "open") {
           this.state.parkActiveShift = null;
         }
       }
@@ -2430,17 +2424,7 @@ export class ERPStore {
 
               if (idbEntriesCount > currentEntriesCount || idbUpdated > currentUpdated) {
                 const cleanedIdbShifts = (idbState.parkShifts || []).filter((s: any) => {
-                  const title = String(s.shift_number || "");
-                  const autoN = String(s.auto_shift_number || "");
-                  const sId = String(s.id || "");
-                  return (
-                    !title.includes("5") &&
-                    !title.includes("7") &&
-                    autoN !== "5" &&
-                    autoN !== "7" &&
-                    !sId.includes("5") &&
-                    !sId.includes("7")
-                  );
+                  return Boolean(s && s.id && (s.shift_number || s.auto_shift_number));
                 });
                 this.state = {
                   ...this.getDefaultState(),
@@ -2756,17 +2740,7 @@ export class ERPStore {
             : [],
           parkShifts: parsed.park_sales_hard_zero_reset_v4_2026_09_03
             ? (parsed.parkShifts || []).filter((s: any) => {
-                const title = String(s.shift_number || "");
-                const autoN = String(s.auto_shift_number || "");
-                const sId = String(s.id || "");
-                return (
-                  !title.includes("5") &&
-                  !title.includes("7") &&
-                  autoN !== "5" &&
-                  autoN !== "7" &&
-                  !sId.includes("5") &&
-                  !sId.includes("7")
-                );
+                return Boolean(s && s.id && (s.shift_number || s.auto_shift_number));
               })
             : [],
           parkActiveShift: parsed.park_sales_hard_zero_reset_v4_2026_09_03
@@ -7464,6 +7438,18 @@ export class ERPStore {
     if (!shift) throw new Error("الوردية غير موجودة!");
     this.state.parkActiveShift = shift;
     this.saveState();
+    shiftAuditService.logShiftAction({
+      shift_id: shift.id,
+      shift_type: "park",
+      shift_number: shift.shift_number,
+      auto_shift_number: shift.auto_shift_number,
+      action: "ACTIVATE",
+      status_before: shift.status,
+      status_after: shift.status,
+      cashier_name: shift.cashier_name,
+      performed_by: this.state.currentUser || shift.cashier_name,
+      details: `تم تعيين وردية التذاكر كنشطة للجلسة: ${shift.shift_number}`,
+    });
     this.notify();
     return shift;
   }
@@ -7493,6 +7479,24 @@ export class ERPStore {
     this.state.parkActiveShift = newShift;
     this.state.parkShifts = [newShift, ...(this.state.parkShifts || [])];
     this.saveState();
+
+    shiftAuditService.logShiftAction({
+      shift_id: newShift.id,
+      shift_type: "park",
+      shift_number: newShift.shift_number,
+      auto_shift_number: newShift.auto_shift_number,
+      action: "OPEN",
+      status_before: null,
+      status_after: "open",
+      cashier_name: newShift.cashier_name,
+      performed_by: this.state.currentUser || newShift.cashier_name,
+      details: `تم افتتاح وردية تذاكر جديدة (${finalShiftNum} - رقم تلقائي: ${autoNum}) باسم: ${newShift.cashier_name}`,
+      metadata: {
+        notes: payload.notes,
+        start_at: newShift.start_at,
+      },
+    });
+
     this.logAction(
       "POS",
       "افتتاح وردية تذاكر",
@@ -7526,6 +7530,21 @@ export class ERPStore {
     }
 
     this.saveState();
+
+    shiftAuditService.logShiftAction({
+      shift_id: shift.id,
+      shift_type: "park",
+      shift_number: shift.shift_number,
+      auto_shift_number: shift.auto_shift_number,
+      action: "UPDATE",
+      status_before: shift.status,
+      status_after: shift.status,
+      cashier_name: shift.cashier_name,
+      performed_by: this.state.currentUser || shift.cashier_name,
+      details: `تم تعديل بيانات وردية التذاكر (${shift.shift_number})`,
+      metadata: updates,
+    });
+
     this.logAction(
       "POS",
       "تعديل بيانات وردية",
@@ -7575,14 +7594,34 @@ export class ERPStore {
     }
 
     // Remove associated transactions that belong to this shift
+    let removedTxsCount = 0;
     if (this.state.parkTicketTransactions) {
+      const initialCount = this.state.parkTicketTransactions.length;
       this.state.parkTicketTransactions = this.state.parkTicketTransactions.filter(
         (tx) => tx.shift_id !== shiftId && tx.shift_number !== shiftId,
       );
+      removedTxsCount = initialCount - this.state.parkTicketTransactions.length;
     }
 
     this.saveState();
     this.saveToIDB(this.state);
+
+    shiftAuditService.logShiftAction({
+      shift_id: shiftId,
+      shift_type: "park",
+      shift_number: shift ? shift.shift_number : shiftId,
+      auto_shift_number: shift?.auto_shift_number || null,
+      action: "DELETE",
+      status_before: shift?.status || "unknown",
+      status_after: "deleted",
+      cashier_name: shift?.cashier_name || null,
+      performed_by: this.state.currentUser || "مسؤول النظام",
+      details: `تم حذف وردية التذاكر (${shift ? shift.shift_number : shiftId}) من النظام مع ${removedTxsCount} معاملة تابعة`,
+      metadata: {
+        removed_transactions_count: removedTxsCount,
+      },
+    });
+
     if (shift) {
       this.logAction(
         "POS",
@@ -7624,6 +7663,13 @@ export class ERPStore {
     this.recalculateAccountBalances();
     this.saveState();
     this.saveToIDB(this.state);
+    shiftAuditService.logShiftAction({
+      shift_id: "all-park-reset",
+      shift_type: "park",
+      shift_number: "تصفير مبيعات التذاكر",
+      action: "DELETE",
+      details: "تم إجراء تصفير كامل لجميع ورديات ومعاملات مبيعات التذاكر",
+    });
     this.notify();
   }
 
@@ -7635,6 +7681,18 @@ export class ERPStore {
 
     this.state.parkActiveShift = shift;
     this.saveState();
+    shiftAuditService.logShiftAction({
+      shift_id: shift.id,
+      shift_type: "park",
+      shift_number: shift.shift_number,
+      auto_shift_number: shift.auto_shift_number,
+      action: "RESUME",
+      status_before: shift.status,
+      status_after: "open",
+      cashier_name: shift.cashier_name,
+      performed_by: this.state.currentUser || shift.cashier_name,
+      details: `تم استئناف وردية التذاكر المفتوحة (${shift.shift_number}) كوردية نشطة للجلسة`,
+    });
     this.notify();
     return shift;
   }
@@ -8083,6 +8141,27 @@ export class ERPStore {
     this.state.parkActiveShift = null;
 
     this.saveState();
+
+    shiftAuditService.logShiftAction({
+      shift_id: activeShift.id,
+      shift_type: "park",
+      shift_number: activeShift.shift_number,
+      auto_shift_number: activeShift.auto_shift_number,
+      action: "CLOSE",
+      status_before: "open",
+      status_after: "closed",
+      cashier_name: activeShift.cashier_name,
+      performed_by: this.state.currentUser || activeShift.cashier_name,
+      details: `تم إغلاق وردية التذاكر (${activeShift.shift_number}) وتوليد ${generatedJournalRefs.length} قيود محاسبية تلقائية`,
+      metadata: {
+        end_at: activeShift.end_at,
+        transactions_count: shiftTransactions.length,
+        generated_journal_refs: generatedJournalRefs,
+        destination_transfers: destinationTransfers,
+        operational_balances: opBalancesAtClose,
+      },
+    });
+
     this.notify();
     this.logAction(
       "POS",
@@ -8127,6 +8206,19 @@ export class ERPStore {
     if (!shift) throw new Error("وردية المطعم غير موجودة!");
     this.state.restaurantActiveShift = shift;
     this.saveState();
+    shiftAuditService.logShiftAction({
+      shift_id: shift.id,
+      shift_type: "restaurant",
+      shift_number: shift.shift_number,
+      auto_shift_number: shift.auto_shift_number,
+      action: "ACTIVATE",
+      status_before: shift.status,
+      status_after: shift.status,
+      cashier_name: shift.cashier_name,
+      cashier_id: shift.cashier_id,
+      performed_by: this.state.currentUser || shift.cashier_name,
+      details: `تم تعيين وردية المطعم كنشطة للجلسة: ${shift.shift_number}`,
+    });
     this.notify();
     return shift;
   }
@@ -8174,6 +8266,27 @@ export class ERPStore {
     this.state.restaurantActiveShift = newShift;
     this.state.restaurantShifts = [newShift, ...(this.state.restaurantShifts || [])];
     this.saveState();
+
+    shiftAuditService.logShiftAction({
+      shift_id: newShift.id,
+      shift_type: "restaurant",
+      shift_number: newShift.shift_number,
+      auto_shift_number: newShift.auto_shift_number,
+      action: "OPEN",
+      status_before: null,
+      status_after: "open",
+      cashier_name: newShift.cashier_name,
+      cashier_id: newShift.cashier_id,
+      performed_by: this.state.currentUser || newShift.cashier_name,
+      details: `تم افتتاح وردية مطعم جديدة (${finalShiftNum} - رقم تلقائي: ${autoNum}) باسم: ${newShift.cashier_name}`,
+      metadata: {
+        start_at: newShift.start_at,
+        opening_balance: newShift.opening_balance,
+        opening_notes: newShift.opening_notes,
+        cashier_type: newShift.cashier_type,
+      },
+    });
+
     this.logAction(
       "POS",
       "افتتاح وردية مطعم",
@@ -8196,6 +8309,22 @@ export class ERPStore {
     }
 
     this.saveState();
+
+    shiftAuditService.logShiftAction({
+      shift_id: shift.id,
+      shift_type: "restaurant",
+      shift_number: shift.shift_number,
+      auto_shift_number: shift.auto_shift_number,
+      action: "UPDATE",
+      status_before: shift.status,
+      status_after: shift.status,
+      cashier_name: shift.cashier_name,
+      cashier_id: shift.cashier_id,
+      performed_by: this.state.currentUser || shift.cashier_name,
+      details: `تم تعديل بيانات وردية المطعم (${shift.shift_number})`,
+      metadata: updates,
+    });
+
     this.logAction(
       "POS",
       "تعديل بيانات وردية مطعم",
@@ -8220,6 +8349,21 @@ export class ERPStore {
     }
 
     this.saveState();
+
+    shiftAuditService.logShiftAction({
+      shift_id: shiftId,
+      shift_type: "restaurant",
+      shift_number: shift.shift_number,
+      auto_shift_number: shift.auto_shift_number || null,
+      action: "DELETE",
+      status_before: shift.status,
+      status_after: "deleted",
+      cashier_name: shift.cashier_name,
+      cashier_id: shift.cashier_id,
+      performed_by: this.state.currentUser || "مسؤول النظام",
+      details: `تم حذف وردية المطعم (${shift.shift_number}) من النظام بالكامل`,
+    });
+
     this.logAction(
       "POS",
       "حذف وردية مطعم",
@@ -8255,6 +8399,24 @@ export class ERPStore {
       this.state.restaurantActiveShift = active;
       this.state.restaurantShifts = [active, ...(this.state.restaurantShifts || [])];
       this.saveState();
+
+      shiftAuditService.logShiftAction({
+        shift_id: active.id,
+        shift_type: "restaurant",
+        shift_number: active.shift_number,
+        auto_shift_number: active.auto_shift_number,
+        action: "AUTO_CREATE",
+        status_before: null,
+        status_after: "open",
+        cashier_name: cashierName,
+        performed_by: this.state.currentUser || cashierName,
+        details: `تم إنشاء وردية مطعم تلقائية للجلسة (${active.shift_number})`,
+        metadata: {
+          start_at: active.start_at,
+          auto_created: true,
+        },
+      });
+
       this.notify();
     }
     return active;
@@ -8289,6 +8451,30 @@ export class ERPStore {
     }
 
     this.saveState();
+
+    shiftAuditService.logShiftAction({
+      shift_id: activeShift.id,
+      shift_type: "restaurant",
+      shift_number: activeShift.shift_number,
+      auto_shift_number: activeShift.auto_shift_number,
+      action: "CLOSE",
+      status_before: "open",
+      status_after: "closed",
+      cashier_name: activeShift.cashier_name,
+      cashier_id: activeShift.cashier_id,
+      performed_by: this.state.currentUser || activeShift.cashier_name,
+      details: `تم إغلاق وردية المطعم (${activeShift.shift_number}) وتحديث التقارير المحاسبية`,
+      metadata: {
+        end_at: activeShift.end_at,
+        closing_notes: closingNotes,
+        orders_count: activeShift.orders_count,
+        total_sales: activeShift.total_sales,
+        total_refunds: activeShift.total_refunds,
+        net_total: activeShift.net_total,
+        payment_breakdown: activeShift.payment_breakdown,
+      },
+    });
+
     this.notify();
     this.logAction(
       "POS",
@@ -8297,6 +8483,75 @@ export class ERPStore {
       "UPDATE",
     );
     return activeShift;
+  }
+
+  /**
+   * Diagnostic and recovery tool: allows recovering or updating any shift state
+   */
+  recoverShiftState(shiftId: string, targetStatus: "open" | "closed", makeActive?: boolean): boolean {
+    const isPark = shiftId.startsWith("shift-park-") || (this.state.parkShifts || []).some((s) => s.id === shiftId);
+    if (isPark) {
+      const shift = (this.state.parkShifts || []).find((s) => s.id === shiftId);
+      if (!shift) throw new Error("وردية التذاكر غير موجودة!");
+      const prevStatus = shift.status;
+      shift.status = targetStatus;
+      if (targetStatus === "open") {
+        shift.end_at = undefined;
+        if (makeActive) {
+          this.state.parkActiveShift = shift;
+        }
+      } else {
+        shift.end_at = shift.end_at || new Date().toISOString();
+        if (this.state.parkActiveShift?.id === shiftId) {
+          this.state.parkActiveShift = null;
+        }
+      }
+      this.saveState();
+      this.saveToIDB(this.state);
+      shiftAuditService.logShiftAction({
+        shift_id: shift.id,
+        shift_type: "park",
+        shift_number: shift.shift_number,
+        auto_shift_number: shift.auto_shift_number,
+        action: "RECOVER_STATE",
+        status_before: prevStatus,
+        status_after: targetStatus,
+        details: `إصلاح حالة الوردية يدوياً بواسطة المطور/المسؤول من "${prevStatus}" إلى "${targetStatus}"`,
+        performed_by: this.state.currentUser || "مسؤول النظام",
+      });
+      this.notify();
+      return true;
+    } else {
+      const shift = (this.state.restaurantShifts || []).find((s) => s.id === shiftId);
+      if (!shift) throw new Error("وردية المطعم غير موجودة!");
+      const prevStatus = shift.status;
+      shift.status = targetStatus;
+      if (targetStatus === "open") {
+        shift.end_at = undefined;
+        if (makeActive) {
+          this.state.restaurantActiveShift = shift;
+        }
+      } else {
+        shift.end_at = shift.end_at || new Date().toISOString();
+        if (this.state.restaurantActiveShift?.id === shiftId) {
+          this.state.restaurantActiveShift = null;
+        }
+      }
+      this.saveState();
+      shiftAuditService.logShiftAction({
+        shift_id: shift.id,
+        shift_type: "restaurant",
+        shift_number: shift.shift_number,
+        auto_shift_number: shift.auto_shift_number,
+        action: "RECOVER_STATE",
+        status_before: prevStatus,
+        status_after: targetStatus,
+        details: `إصلاح حالة وردية المطعم يدوياً من "${prevStatus}" إلى "${targetStatus}"`,
+        performed_by: this.state.currentUser || "مسؤول النظام",
+      });
+      this.notify();
+      return true;
+    }
   }
 
   getRestaurantRefundRecords(shiftId?: string): RestaurantRefundRecord[] {

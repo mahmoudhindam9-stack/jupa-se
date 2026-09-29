@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { erpStore, type Account } from "@/shared/services/erpStore";
 import { inventoryService } from "@/features/inventory/services/inventoryService";
 import { AuditOperationsModal } from "@/components/admin/AuditOperationsModal";
+import { ShiftAuditLogViewerModal } from "@/components/admin/ShiftAuditLogViewerModal";
 import { TreasuryReportModal } from "@/components/admin/TreasuryReportModal";
 import { printTreasuryMovementDocument } from "@/shared/utils/printAccountingDocument";
 import {
@@ -100,6 +101,7 @@ function AdminDashboard() {
 
   const [activeTab, setActiveTab] = useState(tabParam === "audit_logs" ? "dashboard" : tabParam);
   const [isAuditOperationsOpen, setIsAuditOperationsOpen] = useState(false);
+  const [isShiftAuditModalOpen, setIsShiftAuditModalOpen] = useState(false);
 
   useEffect(() => {
     if (tabParam) {
@@ -825,6 +827,15 @@ function AdminDashboard() {
           >
             <History size={16} />
             سجل العمليات
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setIsShiftAuditModalOpen(true)}
+            className="rounded-lg font-bold py-2 px-4 h-auto gap-1.5 text-teal-600 border-teal-500/40 hover:bg-teal-500/10 cursor-pointer"
+          >
+            <Database size={16} />
+            تدقيق الورديات (Supabase)
           </Button>
         </TabsList>
 
@@ -2065,6 +2076,11 @@ function AdminDashboard() {
         open={isAuditOperationsOpen}
         onOpenChange={setIsAuditOperationsOpen}
         logs={erpState.auditLogs || []}
+      />
+
+      <ShiftAuditLogViewerModal
+        isOpen={isShiftAuditModalOpen}
+        onClose={() => setIsShiftAuditModalOpen(false)}
       />
 
       {/* TREASURY REPORTING & MOVEMENT DOCUMENT CENTER MODAL */}

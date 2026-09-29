@@ -31,8 +31,10 @@ import {
   Utensils,
   Receipt,
   CheckCircle2,
+  Database,
 } from "lucide-react";
 import { erpStore, RestaurantShift, Employee } from "@/shared/services/erpStore";
+import { ShiftAuditLogViewerModal } from "@/components/admin/ShiftAuditLogViewerModal";
 import { toast } from "sonner";
 import { useNavigate } from "@tanstack/react-router";
 
@@ -52,6 +54,7 @@ export function RestaurantShiftLauncherModal({
   const navigate = useNavigate();
   const [state, setState] = useState(erpStore.getState());
   const [isNewShiftFormOpen, setIsNewShiftFormOpen] = useState(false);
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
 
   // New Shift Form State
   const [autoShiftNumber, setAutoShiftNumber] = useState("");
@@ -229,14 +232,26 @@ export function RestaurantShiftLauncherModal({
                   <Utensils size={14} />
                   <span>نقطة بيع المطعم (Restaurant POS)</span>
                 </div>
-                <Badge
-                  variant="outline"
-                  className="bg-indigo-500/20 text-indigo-200 border-indigo-400/30 text-xs font-mono"
-                >
-                  {openShifts.length > 0
-                    ? `${openShifts.length} وردية نشطة حالياً`
-                    : "لا توجد ورديات مفتوحة"}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsAuditModalOpen(true)}
+                    className="text-xs h-7 gap-1 font-bold bg-white/10 hover:bg-white/20 text-white border-white/20 cursor-pointer"
+                  >
+                    <Database size={13} />
+                    سجل التدقيق
+                  </Button>
+                  <Badge
+                    variant="outline"
+                    className="bg-indigo-500/20 text-indigo-200 border-indigo-400/30 text-xs font-mono"
+                  >
+                    {openShifts.length > 0
+                      ? `${openShifts.length} وردية نشطة حالياً`
+                      : "لا توجد ورديات مفتوحة"}
+                  </Badge>
+                </div>
               </div>
               <DialogTitle className="text-xl font-black text-white flex items-center gap-2">
                 <Store className="text-indigo-400" size={22} />
@@ -777,6 +792,12 @@ export function RestaurantShiftLauncherModal({
           </DialogContent>
         </Dialog>
       )}
+
+      <ShiftAuditLogViewerModal
+        isOpen={isAuditModalOpen}
+        onClose={() => setIsAuditModalOpen(false)}
+        initialShiftType="restaurant"
+      />
     </>
   );
 }

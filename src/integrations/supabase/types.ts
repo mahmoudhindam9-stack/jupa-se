@@ -246,6 +246,66 @@ export type Database = {
         };
         Relationships: [];
       };
+      shift_audit_logs: {
+        Row: {
+          id: string;
+          shift_id: string;
+          shift_type: "park" | "restaurant";
+          shift_number: string;
+          auto_shift_number: string | null;
+          action: string;
+          status_before: string | null;
+          status_after: string | null;
+          cashier_name: string | null;
+          cashier_id: string | null;
+          performed_by: string | null;
+          user_id: string | null;
+          user_email: string | null;
+          details: string | null;
+          metadata: Json;
+          client_timestamp: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          shift_id: string;
+          shift_type: "park" | "restaurant";
+          shift_number: string;
+          auto_shift_number?: string | null;
+          action: string;
+          status_before?: string | null;
+          status_after?: string | null;
+          cashier_name?: string | null;
+          cashier_id?: string | null;
+          performed_by?: string | null;
+          user_id?: string | null;
+          user_email?: string | null;
+          details?: string | null;
+          metadata?: Json;
+          client_timestamp?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          shift_id?: string;
+          shift_type?: "park" | "restaurant";
+          shift_number?: string;
+          auto_shift_number?: string | null;
+          action?: string;
+          status_before?: string | null;
+          status_after?: string | null;
+          cashier_name?: string | null;
+          cashier_id?: string | null;
+          performed_by?: string | null;
+          user_id?: string | null;
+          user_email?: string | null;
+          details?: string | null;
+          metadata?: Json;
+          client_timestamp?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;

@@ -27,8 +27,10 @@ import {
   ChevronUp,
   Sparkles,
   ShoppingBag,
+  Database,
 } from "lucide-react";
 import { erpStore, ParkShift, Employee } from "@/shared/services/erpStore";
+import { ShiftAuditLogViewerModal } from "@/components/admin/ShiftAuditLogViewerModal";
 import { toast } from "sonner";
 
 interface ParkShiftLauncherModalProps {
@@ -46,6 +48,7 @@ export function ParkShiftLauncherModal({
 }: ParkShiftLauncherModalProps) {
   const [state, setState] = useState(erpStore.getState());
   const [isNewShiftFormOpen, setIsNewShiftFormOpen] = useState(false);
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
 
   // New Shift Form State
   const [autoShiftNumber, setAutoShiftNumber] = useState("");
@@ -212,9 +215,21 @@ export function ParkShiftLauncherModal({
                 <Trees size={22} className="text-teal-600" />
                 <span>إدارة وجلسات نقطة بيع تذاكر الحديقة</span>
               </DialogTitle>
-              <Badge variant="outline" className="bg-teal-50 text-teal-700 border-teal-300 text-xs">
-                Restocash Park POS
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsAuditModalOpen(true)}
+                  className="text-xs h-7 gap-1 font-bold text-teal-600 border-teal-500/40 hover:bg-teal-500/10 cursor-pointer"
+                >
+                  <Database size={13} />
+                  سجل التدقيق
+                </Button>
+                <Badge variant="outline" className="bg-teal-50 text-teal-700 border-teal-300 text-xs">
+                  Restocash Park POS
+                </Badge>
+              </div>
             </div>
             <DialogDescription className="text-xs text-muted-foreground mt-1">
               قم باختيار الوردية النشطة للمتابعة وعمليات البيع/المرتجع، أو افتح وردية جديدة بكاشير
@@ -667,6 +682,12 @@ export function ParkShiftLauncherModal({
           </DialogContent>
         </Dialog>
       )}
+
+      <ShiftAuditLogViewerModal
+        isOpen={isAuditModalOpen}
+        onClose={() => setIsAuditModalOpen(false)}
+        initialShiftType="park"
+      />
     </>
   );
 }

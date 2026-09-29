@@ -41,8 +41,10 @@ import {
   ShoppingCart,
   ArrowRight,
   History,
+  Database,
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { ShiftAuditLogViewerModal } from "@/components/admin/ShiftAuditLogViewerModal";
 import {
   ParkTicketsPOSView,
   ParkRefundModal,
@@ -183,6 +185,7 @@ function MallManagementPage() {
   // Park Tickets & POS state
   const [isParkPosOpen, setIsParkPosOpen] = useState(false);
   const [isParkShiftLauncherOpen, setIsParkShiftLauncherOpen] = useState(false);
+  const [isShiftAuditModalOpen, setIsShiftAuditModalOpen] = useState(false);
   const [selectedClosedShiftForReport, setSelectedClosedShiftForReport] = useState<any>(null);
   const [shiftToCloseFromLauncher, setShiftToCloseFromLauncher] = useState<any>(null);
   const [parkReportType, setParkReportType] = useState<
@@ -3191,14 +3194,24 @@ function MallManagementPage() {
                             </p>
                           </div>
                         </div>
-                        <Button
-                          id="btn-open-new-shift-manual"
-                          onClick={() => setIsParkShiftLauncherOpen(true)}
-                          className="bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl gap-1.5 cursor-pointer shadow-xs text-xs h-9"
-                        >
-                          <Plus size={15} />
-                          فتح وردية جديدة
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            onClick={() => setIsShiftAuditModalOpen(true)}
+                            variant="outline"
+                            className="border-teal-500/40 text-teal-600 hover:bg-teal-500/10 font-bold rounded-xl gap-1.5 cursor-pointer shadow-xs text-xs h-9"
+                          >
+                            <Database size={15} />
+                            سجل تدقيق الورديات (Supabase)
+                          </Button>
+                          <Button
+                            id="btn-open-new-shift-manual"
+                            onClick={() => setIsParkShiftLauncherOpen(true)}
+                            className="bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl gap-1.5 cursor-pointer shadow-xs text-xs h-9"
+                          >
+                            <Plus size={15} />
+                            فتح وردية جديدة
+                          </Button>
+                        </div>
                       </div>
 
                       {(state.parkShifts || [])
@@ -3404,6 +3417,12 @@ function MallManagementPage() {
             onClose={() => setIsParkShiftLauncherOpen(false)}
             onOpenPOS={() => setIsParkPosOpen(true)}
             onRequestCloseShift={(shift) => setShiftToCloseFromLauncher(shift)}
+          />
+
+          <ShiftAuditLogViewerModal
+            isOpen={isShiftAuditModalOpen}
+            onClose={() => setIsShiftAuditModalOpen(false)}
+            initialShiftType="park"
           />
 
           <ParkShiftClosingReportModal
