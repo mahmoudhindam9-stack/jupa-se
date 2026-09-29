@@ -3,11 +3,11 @@ import { createClient } from "@supabase/supabase-js";
 import { Profile } from "@/shared/types";
 
 const getSecondaryClient = () => {
-  const url = import.meta.env.VITE_SUPABASE_URL || "https://placeholder.supabase.co";
+  const url = import.meta.env.VITE_SUPABASE_URL || "https://myqtvbfibvgxkqwxvuru.supabase.co";
   const key =
     import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
     import.meta.env.VITE_SUPABASE_ANON_KEY ||
-    "placeholder";
+    "sb_publishable_srgqLn2ZvysGKh47yCQ0Kg_IW02yjDf";
   return createClient(url, key, {
     auth: {
       persistSession: false,

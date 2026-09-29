@@ -82,19 +82,34 @@ function createSupabaseClient() {
     (typeof process !== "undefined" && process.env
       ? process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
       : undefined) ||
-    "https://placeholder.supabase.co";
+    "https://myqtvbfibvgxkqwxvuru.supabase.co";
 
-  const SUPABASE_PUBLISHABLE_KEY =
+  const MYQTV_PROJECT_REF = "myqtvbfibvgxkqwxvuru";
+  const MYQTV_ANON_KEY =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im15cXR2YmZpYnZneGtxd3h2dXJ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4MjY0NjgsImV4cCI6MjEwMDQwMjQ2OH0.LDFW826N2GRzG9WnLHgYxoeOcTkDOeLjTiFK6aQ-BSE";
+
+  let SUPABASE_PUBLISHABLE_KEY =
     (typeof import.meta !== "undefined" && import.meta.env
-      ? import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY
+      ? import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
       : undefined) ||
     (typeof process !== "undefined" && process.env
-      ? process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-        process.env.SUPABASE_PUBLISHABLE_KEY ||
-        process.env.VITE_SUPABASE_ANON_KEY ||
-        process.env.SUPABASE_ANON_KEY
-      : undefined) ||
-    "placeholder";
+      ? process.env.VITE_SUPABASE_ANON_KEY ||
+        process.env.SUPABASE_ANON_KEY ||
+        process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+        process.env.SUPABASE_PUBLISHABLE_KEY
+      : undefined);
+
+  // If connected to myqtvbfibvgxkqwxvuru, ensure the key belongs to this project ref (prevent stale env tokens from other projects)
+  if (
+    SUPABASE_URL.includes(MYQTV_PROJECT_REF) &&
+    (!SUPABASE_PUBLISHABLE_KEY || !SUPABASE_PUBLISHABLE_KEY.includes(MYQTV_PROJECT_REF))
+  ) {
+    SUPABASE_PUBLISHABLE_KEY = MYQTV_ANON_KEY;
+  }
+
+  if (!SUPABASE_PUBLISHABLE_KEY) {
+    SUPABASE_PUBLISHABLE_KEY = MYQTV_ANON_KEY;
+  }
 
   if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
     const missing = [
